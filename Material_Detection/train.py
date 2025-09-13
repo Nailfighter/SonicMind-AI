@@ -8,6 +8,7 @@ import json
 import os
 from tqdm.auto import tqdm
 import ast
+from torch.cuda.amp import autocast, GradScaler
 
 
 class MaterialDataset(Dataset):
@@ -86,9 +87,9 @@ def main(args):
         return inputs
 
     train_dataloader = DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
+        train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4)
     val_dataloader = DataLoader(
-        val_dataset, batch_size=args.batch_size, collate_fn=collate_fn)
+        val_dataset, batch_size=args.batch_size, collate_fn=collate_fn, num_workers=4)
 
     # --- Training ---
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -96,6 +97,7 @@ def main(args):
     model.to(device)
 
     optimizer = AdamW(model.parameters(), lr=5e-6)
+    scaler = GradScaler()
 
     num_training_steps = args.epochs * len(train_dataloader)
     lr_scheduler = get_scheduler(
@@ -114,6 +116,8 @@ def main(args):
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        # Load the scaler state
+        scaler.load_state_dict(checkpoint['scaler_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         print(f"Resuming from epoch {start_epoch}")
 
@@ -126,15 +130,21 @@ def main(args):
             batch = {k: v.to(device) for k, v in batch.items()}
             labels = batch.pop("labels")
 
-            outputs = model(**batch)
-            logits_per_image = outputs.logits_per_image
-            logits_per_text = outputs.logits_per_text
-            ground_truth = torch.arange(len(logits_per_image)).to(device)
-            loss = (torch.nn.functional.cross_entropy(logits_per_image, ground_truth) +
-                    torch.nn.functional.cross_entropy(logits_per_text, ground_truth)) / 2
+            # Use autocast for mixed-precision
+            with autocast():
+                outputs = model(**batch)
+                logits_per_image = outputs.logits_per_image
+                logits_per_text = outputs.logits_per_text
+                ground_truth = torch.arange(
+                    len(logits_per_image), device=device)
+                loss = (torch.nn.functional.cross_entropy(logits_per_image, ground_truth) +
+                        torch.nn.functional.cross_entropy(logits_per_text, ground_truth)) / 2
 
-            loss.backward()
-            optimizer.step()
+            # Scale the loss and backpropagate
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+
             lr_scheduler.step()
             optimizer.zero_grad()
             progress_bar.update(1)
@@ -146,12 +156,14 @@ def main(args):
             for batch in val_dataloader:
                 batch = {k: v.to(device) for k, v in batch.items()}
                 labels = batch.pop("labels")
-                outputs = model(**batch)
-                logits_per_image = outputs.logits_per_image
-                logits_per_text = outputs.logits_per_text
-                ground_truth = torch.arange(len(logits_per_image)).to(device)
-                loss = (torch.nn.functional.cross_entropy(logits_per_image, ground_truth) +
-                        torch.nn.functional.cross_entropy(logits_per_text, ground_truth)) / 2
+                with autocast():
+                    outputs = model(**batch)
+                    logits_per_image = outputs.logits_per_image
+                    logits_per_text = outputs.logits_per_text
+                    ground_truth = torch.arange(
+                        len(logits_per_image), device=device)
+                    loss = (torch.nn.functional.cross_entropy(logits_per_image, ground_truth) +
+                            torch.nn.functional.cross_entropy(logits_per_text, ground_truth)) / 2
                 total_loss += loss.item()
 
         avg_val_loss = total_loss / len(val_dataloader)
@@ -168,6 +180,7 @@ def main(args):
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': lr_scheduler.state_dict(),
+            'scaler_state_dict': scaler.state_dict(),  # Save the scaler state
         }, checkpoint_path)
 
     # Save the fine-tuned model
@@ -211,8 +224,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=8,
-        help="Training batch size."
+        default=32,
+        help="Training batch size. Adjust based on GPU memory."
     )
     parser.add_argument(
         "--dataset_fraction",
