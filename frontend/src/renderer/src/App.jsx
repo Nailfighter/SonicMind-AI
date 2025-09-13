@@ -1,34 +1,50 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
+import React, { useState } from 'react'
+import "./assets/main.css"
+export default function App() {
+  const [bands, setBands] = useState({
+    bass: 50,
+    mid: 50,
+    treble: 50
+  })
 
-function App() {
-  const ipcHandle = () => window.electron.ipcRenderer.send('ping')
+  const handleChange = (e) => {
+    setBands({
+      ...bands,
+      [e.target.name]: e.target.value
+    })
+  }
 
   return (
-    <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">Powered by electron-vite</div>
-      <div className="text">
-        Build an Electron app with <span className="react">React</span>
+    <div className="h-screen w-screen flex flex-col items-center justify-center bg-gray-900 text-white font-sans">
+      <h1 className="text-3xl font-bold mb-8">🎵 Music Equalizer Dashboard</h1>
+
+      <div className="grid grid-cols-3 gap-8">
+        {Object.entries(bands).map(([band, value]) => (
+          <div key={band} className="flex flex-col items-center">
+            <label className="capitalize text-lg mb-2">{band}</label>
+            <input
+              type="range"
+              name={band}
+              min="0"
+              max="100"
+              value={value}
+              onChange={handleChange}
+              className="w-32 accent-green-400"
+            />
+            <span className="mt-2">{value}</span>
+          </div>
+        ))}
       </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
-      <div className="actions">
-        <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-            Documentation
-          </a>
-        </div>
-        <div className="action">
-          <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
-            Send IPC
-          </a>
-        </div>
+
+      <div className="flex items-end gap-1 mt-10 h-40">
+        {Object.values(bands).map((value, idx) => (
+          <div
+            key={idx}
+            className="w-8 bg-gradient-to-t from-green-600 to-green-300 rounded-md transition-all duration-300"
+            style={{ height: `${value * 1.5}px` }}
+          ></div>
+        ))}
       </div>
-      <Versions></Versions>
-    </>
+    </div>
   )
 }
-
-export default App
