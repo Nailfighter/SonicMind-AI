@@ -1,305 +1,218 @@
-import numpy as np
-import sounddevice as sd
+#!/usr/bin/env python3
+"""
+Live Effects Pedal GUI Application (No Presets)
+===============================================
+Tkinter GUI for real-time audio testing of SonicMind Live Effects Pedal.
+"""
+
+import tkinter as tk
+from tkinter import ttk, messagebox
 import threading
-import json
-from scipy import signal
 import time
+import sys
+import os
 
-class TwelveBandEQ:
-    """
-    12-Band Equalizer with real-time audio processing
-    Frequency bands: 60, 120, 250, 500, 1k, 2k, 4k, 8k, 12k, 16k, 20k Hz
-    """
-    
-    def __init__(self, sample_rate=44100, block_size=256):
-        self.sample_rate = sample_rate
-        self.block_size = block_size
-        
-        # Define the 12 frequency bands (Hz)
-        self.frequencies = [60, 120, 250, 500, 1000, 2000, 4000, 8000, 12000, 16000, 20000]
-        
-        # EQ gains for each band (-20dB to +20dB)
-        self.gains_db = [0.0] * 11  # 11 bands (we'll add one more)
-        self.gains_db.append(0.0)   # 12th band
-        
-        # Create band-pass filters for each frequency
-        self.filters = []
-        self._create_filters()
-        
-        # Thread safety for real-time parameter updates
-        self.parameter_lock = threading.Lock()
-        
-        # Audio stream
-        self.stream = None
-        self.is_running = False
-        
-    def _create_filters(self):
-        """Create band-pass filters for each frequency band"""
-        self.filters = []
-        
-        for i, freq in enumerate(self.frequencies):
-            # Calculate filter boundaries
-            if i == 0:
-                # Low-pass for first band
-                low_freq = 20
-                high_freq = (freq + self.frequencies[i+1]) / 2
-            elif i == len(self.frequencies) - 1:
-                # High-pass for last band
-                low_freq = (self.frequencies[i-1] + freq) / 2
-                high_freq = 22000
-            else:
-                # Band-pass for middle bands
-                low_freq = (self.frequencies[i-1] + freq) / 2
-                high_freq = (freq + self.frequencies[i+1]) / 2
-            
-            # Create second-order sections (SOS) filter
-            if i == 0:
-                # Low-pass filter
-                sos = signal.butter(2, high_freq / (self.sample_rate / 2), 
-                                  btype='low', output='sos')
-            elif i == len(self.frequencies) - 1:
-                # High-pass filter
-                sos = signal.butter(2, low_freq / (self.sample_rate / 2), 
-                                  btype='high', output='sos')
-            else:
-                # Band-pass filter
-                sos = signal.butter(2, [low_freq / (self.sample_rate / 2), 
-                                      high_freq / (self.sample_rate / 2)], 
-                                  btype='band', output='sos')
-            
-            self.filters.append({
-                'sos': sos,
-                'zi': signal.sosfilt_zi(sos),  # Initial conditions for filtering
-                'freq': freq,
-                'low': low_freq,
-                'high': high_freq
-            })
-    
-    def set_band_gain(self, band_index, gain_db):
-        """
-        Set gain for a specific frequency band
-        
-        Args:
-            band_index (int): Band index (0-11)
-            gain_db (float): Gain in dB (-20 to +20)
-        """
-        if 0 <= band_index < len(self.gains_db):
-            with self.parameter_lock:
-                # Clamp gain to reasonable range
-                self.gains_db[band_index] = max(-20.0, min(20.0, gain_db))
-                print(f"Band {band_index} ({self.frequencies[band_index]}Hz): {gain_db:.1f}dB")
-    
-    def get_band_gain(self, band_index):
-        """Get current gain for a band"""
-        if 0 <= band_index < len(self.gains_db):
-            with self.parameter_lock:
-                return self.gains_db[band_index]
-        return 0.0
-    
-    def reset_all_bands(self):
-        """Reset all bands to 0dB (flat response)"""
-        with self.parameter_lock:
-            self.gains_db = [0.0] * len(self.gains_db)
-        print("All EQ bands reset to 0dB")
-    
-    def process_audio_block(self, audio_block):
-        """
-        Process a single audio block through the EQ
-        
-        Args:
-            audio_block (numpy.ndarray): Input audio samples
-            
-        Returns:
-            numpy.ndarray: EQ-processed audio
-        """
-        # Make sure we're working with the right shape
-        if len(audio_block.shape) == 1:
-            # Mono audio
-            processed = np.zeros_like(audio_block)
-        else:
-            # Stereo - process left channel only for simplicity
-            audio_block = audio_block[:, 0]
-            processed = np.zeros_like(audio_block)
-        
-        # Apply each frequency band
-        with self.parameter_lock:
-            current_gains = self.gains_db.copy()
-        
-        for i, filter_data in enumerate(self.filters):
-            if i < len(current_gains):
-                # Apply band-pass filter
-                filtered, filter_data['zi'] = signal.sosfilt(
-                    filter_data['sos'], 
-                    audio_block, 
-                    zi=filter_data['zi']
-                )
-                
-                # Apply gain (convert dB to linear)
-                gain_linear = 10 ** (current_gains[i] / 20.0)
-                processed += filtered * gain_linear
-        
-        return processed
-    
-    def audio_callback(self, indata, outdata, frames, time, status):
-        """Real-time audio callback function - optimized for mono"""
-        if status:
-            print(f"Audio status: {status}")
-        
+# Import LivePedal from parent directory
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from LivePedal import LiveEffectsPedal
+
+
+class PedalGUI(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("🎸 SonicMind Live Effects Pedal")
+        self.geometry("900x650")
+        self.configure(bg="black")
+
+        # Initialize pedal
+        self.pedal = LiveEffectsPedal(block_size=128)
+        self.sliders = {}
+
+        # Layout
+        self.create_widgets()
+
+        # Start audio in a separate thread
+        threading.Thread(target=self.start_audio, daemon=True).start()
+
+        # Update status in background
+        self.running = True
+        threading.Thread(target=self.update_status_loop, daemon=True).start()
+
+    def start_audio(self):
+        """Start the pedal's audio stream safely"""
         try:
-            # Simple mono processing
-            audio_input = indata.flatten() if len(indata.shape) > 1 else indata
-            processed = self.process_audio_block(audio_input)
-            
-            # Output mono
-            if len(outdata.shape) > 1:
-                outdata[:, 0] = processed
-            else:
-                outdata[:] = processed
-            
+            self.pedal.start()
+            time.sleep(0.1)  # Give audio thread time to initialize
+            if not self.pedal.is_running:
+                messagebox.showerror("Error", "❌ Failed to start audio processing")
+                self.destroy()
         except Exception as e:
-            print(f"Audio processing error: {e}")
-            # Fallback: pass through unprocessed audio
-            try:
-                outdata[:] = indata
-            except:
-                outdata.fill(0)  # Silence if all else fails
-    
-    def start_audio_stream(self):
-        """Start real-time audio processing"""
-        try:
-            self.stream = sd.Stream(
-                callback=self.audio_callback,
-                samplerate=self.sample_rate,
-                blocksize=self.block_size,
-                channels=2,  # Stereo input/output
-                dtype=np.float32
+            messagebox.showerror("Error", f"❌ Audio initialization failed:\n{e}")
+            self.destroy()
+
+    def create_widgets(self):
+        # Title
+        title = tk.Label(
+            self, text="🎸 SonicMind Live Pedalboard",
+            fg="white", bg="black", font=("Arial", 20, "bold")
+        )
+        title.pack(pady=10)
+
+        # Status area
+        self.status_label = tk.Label(
+            self, text="🔄 Initializing...",
+            fg="white", bg="black", font=("Arial", 12)
+        )
+        self.status_label.pack(pady=10)
+
+        # Effect management controls
+        control_frame = tk.Frame(self, bg="black")
+        control_frame.pack(pady=5)
+
+        tk.Label(control_frame, text="Add Effect:", fg="white", bg="black").pack(side=tk.LEFT, padx=5)
+        self.effect_choice = ttk.Combobox(control_frame, values=[
+            "compressor", "distortion", "eq", "delay", "reverb"
+        ])
+        self.effect_choice.pack(side=tk.LEFT, padx=5)
+        self.effect_choice.current(0)
+
+        add_btn = ttk.Button(control_frame, text="➕ Add", command=self.add_effect)
+        add_btn.pack(side=tk.LEFT, padx=5)
+
+        clear_btn = ttk.Button(control_frame, text="🗑️ Clear Chain", command=self.clear_chain)
+        clear_btn.pack(side=tk.LEFT, padx=5)
+
+        # Effects frame
+        self.effects_frame = tk.Frame(self, bg="black")
+        self.effects_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+
+        # Quit button
+        quit_btn = ttk.Button(self, text="❌ Quit", command=self.quit_app)
+        quit_btn.pack(pady=10)
+
+    def clear_effects_ui(self):
+        for widget in self.effects_frame.winfo_children():
+            widget.destroy()
+        self.sliders.clear()
+
+    def build_effects_ui(self):
+        """Dynamically build UI for all effects in chain"""
+        self.clear_effects_ui()
+        chain = self.pedal.get_chain_info()
+
+        if not chain:
+            lbl = tk.Label(
+                self.effects_frame, text="(No effects loaded)",
+                fg="gray", bg="black", font=("Arial", 12)
             )
-            self.stream.start()
-            self.is_running = True
-            print(f"EQ started - Sample rate: {self.sample_rate}Hz, Block size: {self.block_size}")
-            print("12-Band EQ Frequencies:")
-            for i, freq in enumerate(self.frequencies):
-                print(f"  Band {i}: {freq}Hz")
-            
-        except Exception as e:
-            print(f"Failed to start audio stream: {e}")
-    
-    def stop_audio_stream(self):
-        """Stop audio processing"""
-        if self.stream and self.is_running:
-            self.stream.stop()
-            self.stream.close()
-            self.is_running = False
-            print("EQ stopped")
-    
-    def save_preset(self, filename):
-        """Save current EQ settings to JSON file"""
-        preset = {
-            'gains_db': self.gains_db,
-            'frequencies': self.frequencies,
-            'sample_rate': self.sample_rate
-        }
-        
-        with open(filename, 'w') as f:
-            json.dump(preset, f, indent=2)
-        print(f"Preset saved to {filename}")
-    
-    def load_preset(self, filename):
-        """Load EQ settings from JSON file"""
-        try:
-            with open(filename, 'r') as f:
-                preset = json.load(f)
-            
-            with self.parameter_lock:
-                self.gains_db = preset['gains_db']
-            
-            print(f"Preset loaded from {filename}")
-            for i, gain in enumerate(self.gains_db):
-                if i < len(self.frequencies):
-                    print(f"  {self.frequencies[i]}Hz: {gain:.1f}dB")
-                    
-        except Exception as e:
-            print(f"Failed to load preset: {e}")
-    
-    def print_current_settings(self):
-        """Print current EQ settings"""
-        print("\nCurrent EQ Settings:")
-        for i, (freq, gain) in enumerate(zip(self.frequencies, self.gains_db)):
-            print(f"  Band {i:2d}: {freq:5d}Hz = {gain:+5.1f}dB")
+            lbl.pack()
+            return
 
+        for i, effect in enumerate(chain):
+            frame = tk.LabelFrame(
+                self.effects_frame,
+                text=f"Effect {i}: {effect['type']}",
+                fg="white", bg="black",
+                font=("Arial", 12, "bold"), labelanchor="n"
+            )
+            frame.pack(fill=tk.X, padx=10, pady=5)
 
-# Example usage and test functions
-def interactive_eq_demo():
-    """Interactive demo of the 12-band EQ"""
-    eq = TwelveBandEQ()
-    
-    print("12-Band EQ Demo")
-    print("===============")
-    print("Commands:")
-    print("  'set <band> <gain>' - Set band gain (e.g., 'set 0 5.0')")
-    print("  'reset' - Reset all bands to 0dB")
-    print("  'save <filename>' - Save preset")
-    print("  'load <filename>' - Load preset")
-    print("  'show' - Show current settings")
-    print("  'start' - Start audio processing")
-    print("  'stop' - Stop audio processing")
-    print("  'quit' - Exit")
-    
-    eq.print_current_settings()
-    
-    while True:
+            # Toggle button
+            toggle_var = tk.BooleanVar(value=effect['enabled'])
+            toggle_btn = ttk.Checkbutton(
+                frame, text="Enabled", variable=toggle_var,
+                command=lambda idx=i, var=toggle_var: self.toggle_effect(idx, var.get())
+            )
+            toggle_btn.pack(anchor="w", padx=5, pady=2)
+
+            # Sliders for parameters
+            for param, value in effect['parameters'].items():
+                slider_frame = tk.Frame(frame, bg="black")
+                slider_frame.pack(fill=tk.X, padx=5, pady=2)
+
+                lbl = tk.Label(
+                    slider_frame, text=f"{param}:",
+                    fg="white", bg="black", width=12, anchor="w"
+                )
+                lbl.pack(side=tk.LEFT)
+
+                var = tk.DoubleVar(value=value)
+                slider = ttk.Scale(
+                    slider_frame, from_=0.0, to=2.0, variable=var,
+                    command=lambda val, idx=i, pname=param: self.set_param(idx, pname, float(val))
+                )
+                slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+                self.sliders[(i, param)] = var
+
+    def set_param(self, effect_id, param_name, value):
         try:
-            command = input("\nEQ> ").strip().lower()
-            
-            if command == 'quit':
-                break
-            elif command == 'start':
-                eq.start_audio_stream()
-            elif command == 'stop':
-                eq.stop_audio_stream()
-            elif command == 'reset':
-                eq.reset_all_bands()
-            elif command == 'show':
-                eq.print_current_settings()
-            elif command.startswith('set '):
-                parts = command.split()
-                if len(parts) == 3:
-                    band = int(parts[1])
-                    gain = float(parts[2])
-                    eq.set_band_gain(band, gain)
-                else:
-                    print("Usage: set <band_index> <gain_db>")
-            elif command.startswith('save '):
-                filename = command.split(' ', 1)[1] + '.json'
-                eq.save_preset(filename)
-            elif command.startswith('load '):
-                filename = command.split(' ', 1)[1] + '.json'
-                eq.load_preset(filename)
+            self.pedal.set_effect_parameter(effect_id, param_name, value)
+        except Exception as e:
+            print(f"Param error: {e}")
+
+    def toggle_effect(self, effect_id, enabled):
+        chain = self.pedal.get_chain_info()
+        if 0 <= effect_id < len(chain):
+            if enabled != chain[effect_id]['enabled']:
+                self.pedal.toggle_effect(effect_id)
+
+    def add_effect(self):
+        choice = self.effect_choice.get().strip().lower()
+        if not choice:
+            return
+
+        try:
+            if choice == "compressor":
+                self.pedal.add_effect("compressor", threshold=0.5, ratio=2.0, makeup_gain=1.0)
+            elif choice == "distortion":
+                self.pedal.add_effect("distortion", drive=0.5, tone=0.7, level=0.8)
+            elif choice == "eq":
+                self.pedal.add_effect("eq", bass=1.0, mid=1.0, treble=1.0)
+            elif choice == "delay":
+                self.pedal.add_effect("delay", time=0.25, feedback=0.4, mix=0.3)
+            elif choice == "reverb":
+                self.pedal.add_effect("reverb", room_size=0.6, decay=0.5, mix=0.3)
             else:
-                print("Unknown command")
-                
-        except KeyboardInterrupt:
-            break
+                messagebox.showwarning("Invalid Effect", f"Effect '{choice}' is not supported")
+                return
         except Exception as e:
-            print(f"Error: {e}")
-    
-    eq.stop_audio_stream()
-    print("EQ Demo ended")
+            messagebox.showerror("Error", f"Failed to add effect: {e}")
+            return
+
+        self.build_effects_ui()
+
+    def clear_chain(self):
+        self.pedal.clear_chain()
+        self.build_effects_ui()
+
+    def update_status_loop(self):
+        """Background loop to update status"""
+        while self.running:
+            try:
+                status = self.pedal.get_status()
+                latency_ms = (status['block_size'] / status['sample_rate']) * 1000
+                self.status_label.config(
+                    text=f"Status: {'🟢 Running' if status['running'] else '🔴 Stopped'} | "
+                         f"CPU: {status['cpu_load']:.1f}% | "
+                         f"Latency: ~{latency_ms:.1f} ms | "
+                         f"Effects: {status['effects_count']} | "
+                         f"Dropouts: {status['dropout_count']}"
+                )
+            except Exception as e:
+                self.status_label.config(text=f"❌ Error: {e}")
+            time.sleep(0.2)
+
+    def quit_app(self):
+        self.running = False
+        self.pedal.stop()
+        self.destroy()
+
+
+def main():
+    app = PedalGUI()
+    app.mainloop()
 
 
 if __name__ == "__main__":
-    # Quick test
-    print("Testing 12-Band EQ Library...")
-    
-    # Create EQ instance
-    eq = TwelveBandEQ()
-    
-    # Test setting some bands
-    eq.set_band_gain(0, 3.0)   # Boost bass (60Hz)
-    eq.set_band_gain(6, -2.0)  # Cut mids (4kHz)
-    eq.set_band_gain(9, 5.0)   # Boost treble (16kHz)
-    
-    eq.print_current_settings()
-    
-    # Run interactive demo
-    interactive_eq_demo()
+    main()
