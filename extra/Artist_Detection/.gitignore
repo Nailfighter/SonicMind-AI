@@ -1,0 +1,79 @@
+# Hackathon Project .gitignore
+
+# Training artifacts and datasets (too large for git)
+training_artifacts/
+*.pt
+*.pth
+*.ckpt
+models/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+.env
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+.tmp/
+
+# Demo artifacts
+demo_instrument_snapshot/
+keys/
+
+# Large files and model weights
+*.bin
+*.h5
+*.weights
+
+# Configuration files with secrets
+config.json
+secrets.json
+
+# Test outputs
+screenshots/
+results/
+
+# Runtime files
+.api_pids
+
+# Development docs
+WARP.md
+**/WARP.md

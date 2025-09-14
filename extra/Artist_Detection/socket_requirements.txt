@@ -1,0 +1,25 @@
+# WebSocket Server Requirements - Hackathon Edition
+# Minimal dependencies for fast setup and reliable performance
+
+# WebSocket Server
+websockets>=11.0.2
+asyncio-mqtt>=0.13.0
+
+# Core ML/AI Libraries (same as main project)
+torch>=2.0.0
+torchvision>=0.15.0
+ultralytics==8.0.200
+
+# Computer Vision
+opencv-python>=4.8.0
+Pillow>=9.0.0
+
+# Data Processing
+numpy>=1.24.0
+
+# Utilities for JSON and async operations
+aiofiles>=23.0.0
+python-json-logger>=2.0.0
+
+# Optional but useful for debugging
+colorama>=0.4.6
