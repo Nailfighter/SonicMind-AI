@@ -1,8 +1,14 @@
 # SonicMind-AI
 
-Real-time AI-powered sound engineering assistant with automatic EQ adjustment, instrument detection, and room acoustics analysis for Snapdragon X Elite.
+From a professional sound engineer fine-tuning live concerts, to a student recording in a dorm room, SonicMind-AI makes studio-grade sound optimization accessible to everyone.
+
+Powered by Snapdragon X Elite, SonicMind-AI automatically analyzes instruments, voices, and room acoustics in real time. It adjusts EQ levels, tracks performer movement relative to speakers, and adapts audio based on the surrounding materials and environment.
+
+Whether it’s reducing latency for live performances in auditoriums, balancing sound at concerts, or applying intelligent presets in small rooms, SonicMind-AI continuously learns and fine-tunes your audio — so your audience hears the best version every time.
 
 ## Architecture
+
+![AI System Flowchart](AI_FLOWCHART.jpg)
 
 ### Backend (Python)
 
