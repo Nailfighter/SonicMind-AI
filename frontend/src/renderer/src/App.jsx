@@ -7,12 +7,11 @@ import DeviceSettingsPage from './components/DeviceSettingsPage.jsx'
 import LoadingPage from './components/LoadingPage.jsx'
 import LiveSettingPage from './components/LiveSettingPage.jsx'
 
-
 const App = () => {
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [currentPage, setCurrentPage] = useState('profiles') // 'profiles', 'profile', 'upload', 'devices', 'loading', or 'live'
   const [selectedMode, setSelectedMode] = useState(null)
-  
+
   // Sample profiles for demonstration
   const profiles = [
     { id: 1, name: 'Alex' },
@@ -68,18 +67,13 @@ const App = () => {
   console.log('Current page:', currentPage, 'Selected profile:', selectedProfile)
 
   if (currentPage === 'upload' && selectedProfile) {
-    return (
-      <UploadVideoPage 
-        profile={selectedProfile} 
-        onBack={handleBackToProfile}
-      />
-    )
+    return <UploadVideoPage profile={selectedProfile} onBack={handleBackToProfile} />
   }
 
   if (currentPage === 'devices' && selectedProfile) {
     return (
-      <DeviceSettingsPage 
-        profile={selectedProfile} 
+      <DeviceSettingsPage
+        profile={selectedProfile}
         onBack={handleBackToProfile}
         onContinue={handleDeviceSettingsComplete}
       />
@@ -87,26 +81,17 @@ const App = () => {
   }
 
   if (currentPage === 'loading' && selectedProfile) {
-    return (
-      <LoadingPage 
-        onComplete={handleLoadingComplete}
-      />
-    )
+    return <LoadingPage onComplete={handleLoadingComplete} />
   }
 
   if (currentPage === 'live' && selectedProfile) {
-    return (
-      <LiveSettingPage 
-        profile={selectedProfile} 
-        onBack={handleBackToDevices}
-      />
-    )
+    return <LiveSettingPage profile={selectedProfile} onBack={handleBackToDevices} />
   }
 
   if (currentPage === 'profile' && selectedProfile) {
     return (
-      <ProfilePage 
-        profile={selectedProfile} 
+      <ProfilePage
+        profile={selectedProfile}
         onBack={handleBackToProfiles}
         onModeSelect={handleModeSelect}
       />
@@ -114,28 +99,35 @@ const App = () => {
   }
 
   return (
-    <div className="w-screen h-screen bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden">
-      {/* Grid overlay */}
-      <div 
-        className="absolute inset-0 opacity-15"
-        style={{
-          backgroundImage: `
+    <>
+      <style>{`
+        * {
+          font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', 'Courier New', monospace !important;
+        }
+      `}</style>
+      <div className="w-screen h-screen bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden">
+        {/* Grid overlay */}
+        <div
+          className="absolute inset-0 opacity-15"
+          style={{
+            backgroundImage: `
             linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
             linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px)
           `,
-          backgroundSize: '20px 20px'
-        }}
-      />
-      
-      {/* Main content */}
-      <div className="relative z-10 w-full h-full flex items-center justify-center p-8">
-        <ProfileSelector
-          profiles={profiles}
-          onProfileSelect={handleProfileSelect}
-          onCreateNew={handleCreateNew}
+            backgroundSize: '20px 20px'
+          }}
         />
+
+        {/* Main content */}
+        <div className="relative z-10 w-full h-full flex items-center justify-center p-8">
+          <ProfileSelector
+            profiles={profiles}
+            onProfileSelect={handleProfileSelect}
+            onCreateNew={handleCreateNew}
+          />
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
