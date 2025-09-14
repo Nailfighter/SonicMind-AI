@@ -3,6 +3,7 @@ import './assets/main.css'
 import ProfileSelector from './components/ProfileSelector.jsx'
 import ProfilePage from './components/ProfilePage.jsx'
 import UploadVideoPage from './components/UploadVideoPage.jsx'
+import UploadSettingsPage from './components/UploadSettingsPage.jsx'
 import DeviceSettingsPage from './components/DeviceSettingsPage.jsx'
 import LoadingPage from './components/LoadingPage.jsx'
 import LiveSettingPage from './components/LiveSettingPage.jsx'
@@ -10,8 +11,10 @@ import LiveSettingPage from './components/LiveSettingPage.jsx'
 
 const App = () => {
   const [selectedProfile, setSelectedProfile] = useState(null)
-  const [currentPage, setCurrentPage] = useState('profiles') // 'profiles', 'profile', 'upload', 'devices', 'loading', or 'live'
+  const [currentPage, setCurrentPage] = useState('profiles') // 'profiles', 'profile', 'upload', 'upload-settings', 'devices', 'loading', or 'live'
   const [selectedMode, setSelectedMode] = useState(null)
+  const [deviceSettings, setDeviceSettings] = useState(null)
+  const [uploadData, setUploadData] = useState(null)
   
   // Sample profiles for demonstration
   const profiles = [
@@ -35,6 +38,7 @@ const App = () => {
     setCurrentPage('profiles')
     setSelectedProfile(null)
     setSelectedMode(null)
+    setDeviceSettings(null)
   }
 
   const handleModeSelect = (mode) => {
@@ -46,7 +50,9 @@ const App = () => {
     }
   }
 
-  const handleDeviceSettingsComplete = () => {
+  const handleDeviceSettingsComplete = (settings) => {
+    setDeviceSettings(settings)
+    console.log('Device settings saved:', settings)
     setCurrentPage('loading')
   }
 
@@ -65,6 +71,20 @@ const App = () => {
     setCurrentPage('devices')
   }
 
+  const handleUploadComplete = (uploadData) => {
+    setUploadData(uploadData)
+    setCurrentPage('upload-settings')
+  }
+
+  const handleUploadSettingsComplete = () => {
+    setCurrentPage('loading')
+  }
+
+  const handleBackToUpload = () => {
+    setCurrentPage('upload')
+    setUploadData(null)
+  }
+
   console.log('Current page:', currentPage, 'Selected profile:', selectedProfile)
 
   if (currentPage === 'upload' && selectedProfile) {
@@ -72,6 +92,18 @@ const App = () => {
       <UploadVideoPage 
         profile={selectedProfile} 
         onBack={handleBackToProfile}
+        onContinue={handleUploadComplete}
+      />
+    )
+  }
+
+  if (currentPage === 'upload-settings' && selectedProfile && uploadData) {
+    return (
+      <UploadSettingsPage 
+        profile={selectedProfile} 
+        uploadData={uploadData}
+        onBack={handleBackToUpload}
+        onContinue={handleUploadSettingsComplete}
       />
     )
   }
@@ -98,6 +130,7 @@ const App = () => {
     return (
       <LiveSettingPage 
         profile={selectedProfile} 
+        deviceSettings={deviceSettings}
         onBack={handleBackToDevices}
       />
     )

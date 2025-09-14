@@ -1,6 +1,6 @@
 import React from 'react'
 
-const LiveSettingPage = ({ profile, onBack }) => {
+const LiveSettingPage = ({ profile, deviceSettings, onBack }) => {
   return (
     <div className="w-screen h-screen bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden">
       {/* Grid overlay */}
@@ -108,11 +108,30 @@ const LiveSettingPage = ({ profile, onBack }) => {
             <span className="text-4xl text-gray-400 font-bold">?</span>
           </div>
 
-          {/* Bottom Right - Video Section */}
+          {/* Bottom Right - Device Settings */}
           <div className="h-32 bg-white rounded-lg shadow-lg border border-gray-200 p-4">
-            <h3 className="text-lg font-bold text-gray-800 mb-2">Video</h3>
-            <div className="w-full h-full bg-gray-100 rounded border border-gray-300 flex items-center justify-center">
-              <span className="text-gray-400 text-sm">Video Preview</span>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Device Settings</h3>
+            <div className="w-full h-full space-y-1">
+              {deviceSettings ? (
+                <div className="text-xs text-gray-600 space-y-1">
+                  <div className="flex justify-between">
+                    <span>Audience Camera:</span>
+                    <span className="font-medium">{deviceSettings.AudienceCamera}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Artist Camera:</span>
+                    <span className="font-medium">{deviceSettings.ArtistCamera}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Artist Mic:</span>
+                    <span className="font-medium">{deviceSettings.ArtistMicrophone}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full h-full bg-gray-100 rounded border border-gray-300 flex items-center justify-center">
+                  <span className="text-gray-400 text-sm">No device settings</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

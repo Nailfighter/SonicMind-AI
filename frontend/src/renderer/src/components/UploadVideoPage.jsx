@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 
-const UploadVideoPage = ({ profile, onBack }) => {
+const UploadVideoPage = ({ profile, onBack, onContinue }) => {
   const [uploadedFile, setUploadedFile] = useState(null)
   const [selectedInstrument, setSelectedInstrument] = useState(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -58,8 +58,12 @@ const UploadVideoPage = ({ profile, onBack }) => {
 
   const handleContinue = () => {
     if (uploadedFile && selectedInstrument) {
+      const uploadData = {
+        file: uploadedFile,
+        instrument: selectedInstrument
+      }
       console.log('Processing video:', uploadedFile.name, 'for instrument:', selectedInstrument.name)
-      // Add logic to process the video
+      onContinue(uploadData)
     }
   }
 
