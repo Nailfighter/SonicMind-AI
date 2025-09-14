@@ -19,7 +19,7 @@ const FluidVisualizer = () => {
       canvas.width = rect.width
       canvas.height = rect.height
     }
-    
+
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
 
@@ -36,11 +36,11 @@ const FluidVisualizer = () => {
         try {
           micInput = new Tone.UserMedia()
           await micInput.open()
-          
+
           // Create analysers for stereo visualization
           analyser1 = new Tone.Analyser('fft', 2048)
           analyser2 = new Tone.Analyser('fft', 2048)
-          
+
           // Connect microphone to both analysers
           micInput.connect(analyser1)
           micInput.connect(analyser2)
@@ -52,8 +52,8 @@ const FluidVisualizer = () => {
 
         draw()
       } catch (error) {
-          // Silently handle setup errors
-        }
+        // Silently handle setup errors
+      }
     }
 
     const drawChannel = (analyser, channel) => {
@@ -109,7 +109,7 @@ const FluidVisualizer = () => {
       const smoothedPoints = []
       const smoothingFactor = 0.7 // Temporal smoothing
       const spatialSmoothing = 3 // Spatial smoothing window
-      
+
       // Get or create smoothing buffer for this channel
       const channelKey = `channel_${channel}`
       if (!smoothingBuffer.current.has(channelKey)) {
@@ -118,28 +118,28 @@ const FluidVisualizer = () => {
       const prevValues = smoothingBuffer.current.get(channelKey)
 
       for (let i = 0; i < numPoints; i++) {
-           // Calculate frequency mapping optimized for musical content
-           const normalizedPos = i / (numPoints - 1) // 0 to 1
-           let freq
-           
-           if (normalizedPos <= 0.15) {
-             // First 15% covers 20Hz to 200Hz (bass/sub-bass)
-             const subPos = normalizedPos / 0.15
-             freq = 20 + (180 * Math.pow(subPos, 0.7)) // Slightly compressed bass
-           } else if (normalizedPos <= 0.75) {
-             // Next 60% covers 200Hz to 4kHz (critical midrange for vocals/instruments)
-             const subPos = (normalizedPos - 0.15) / 0.6
-             freq = 200 + (3800 * subPos) // Linear high-resolution mapping for mids
-           } else {
-             // Last 25% covers 4kHz to 20kHz (presence/air)
-             const subPos = (normalizedPos - 0.75) / 0.25
-             freq = 4000 * Math.pow(5, subPos) // Logarithmic for highs
-           }
-           
-           // Map frequency to FFT bin
-           const binIndex = Math.floor((freq / nyquist) * (fftSize / 2))
-           const clampedIndex = Math.max(minBin, Math.min(maxBin - 1, binIndex))
-        
+        // Calculate frequency mapping optimized for musical content
+        const normalizedPos = i / (numPoints - 1) // 0 to 1
+        let freq
+
+        if (normalizedPos <= 0.15) {
+          // First 15% covers 20Hz to 200Hz (bass/sub-bass)
+          const subPos = normalizedPos / 0.15
+          freq = 20 + 180 * Math.pow(subPos, 0.7) // Slightly compressed bass
+        } else if (normalizedPos <= 0.75) {
+          // Next 60% covers 200Hz to 4kHz (critical midrange for vocals/instruments)
+          const subPos = (normalizedPos - 0.15) / 0.6
+          freq = 200 + 3800 * subPos // Linear high-resolution mapping for mids
+        } else {
+          // Last 25% covers 4kHz to 20kHz (presence/air)
+          const subPos = (normalizedPos - 0.75) / 0.25
+          freq = 4000 * Math.pow(5, subPos) // Logarithmic for highs
+        }
+
+        // Map frequency to FFT bin
+        const binIndex = Math.floor((freq / nyquist) * (fftSize / 2))
+        const clampedIndex = Math.max(minBin, Math.min(maxBin - 1, binIndex))
+
         let value = values[clampedIndex]
         if (!isFinite(value)) value = -100
 
@@ -154,9 +154,10 @@ const FluidVisualizer = () => {
           count++
         }
         smoothedValue /= count
-        
+
         // Apply temporal smoothing
-        const temporalSmoothed = prevValues[i] * smoothingFactor + smoothedValue * (1 - smoothingFactor)
+        const temporalSmoothed =
+          prevValues[i] * smoothingFactor + smoothedValue * (1 - smoothingFactor)
         prevValues[i] = temporalSmoothed
 
         // Convert dB to normalized value (-100dB to 0dB -> 0 to 1)
@@ -224,13 +225,14 @@ const FluidVisualizer = () => {
       ctx.stroke()
 
       // Calculate peak level for display
-      const peakDb = Math.max(...smoothedPoints.map(p => p.db))
-      
+      const peakDb = Math.max(...smoothedPoints.map((p) => p.db))
+
       // Draw peak indicators on the curve
       ctx.shadowBlur = 0
       ctx.fillStyle = gradient
       smoothedPoints.forEach((point, i) => {
-        if (point.db > -6 && i % 15 === 0) { // Show peaks above -6dB
+        if (point.db > -6 && i % 15 === 0) {
+          // Show peaks above -6dB
           ctx.beginPath()
           ctx.arc(point.x, point.y, 2, 0, Math.PI * 2)
           ctx.fill()
@@ -240,7 +242,14 @@ const FluidVisualizer = () => {
       // Draw channel label with peak level
       ctx.font = '11px Arial'
       ctx.textAlign = 'left'
-      const peakColor = peakDb > -6 ? '#ff6666' : peakDb > -12 ? '#ffaa00' : (channel === 1 ? 'rgba(0, 150, 255, 0.8)' : 'rgba(255, 100, 0, 0.8)')
+      const peakColor =
+        peakDb > -6
+          ? '#ff6666'
+          : peakDb > -12
+            ? '#ffaa00'
+            : channel === 1
+              ? 'rgba(0, 150, 255, 0.8)'
+              : 'rgba(255, 100, 0, 0.8)'
       ctx.fillStyle = peakColor
       ctx.fillText(`Channel ${channel} (Peak: ${peakDb.toFixed(1)}dB)`, 10, 20 + (channel - 1) * 15)
     }
@@ -251,37 +260,37 @@ const FluidVisualizer = () => {
       const time = Date.now() * 0.001
       const points1 = []
       const points2 = []
-      
+
       // Generate procedural waveforms
       for (let i = 0; i < 100; i++) {
         const x = (i / 99) * canvas.width
         const freq1 = 0.02 + i * 0.001
         const freq2 = 0.015 + i * 0.0008
-        
+
         const y1 = canvas.height * 0.7 + Math.sin(time * freq1 + i * 0.1) * canvas.height * 0.2
         const y2 = canvas.height * 0.3 + Math.cos(time * freq2 + i * 0.15) * canvas.height * 0.15
-        
+
         points1.push({ x, y: y1 })
         points2.push({ x, y: y2 })
       }
-      
+
       // Draw channel 1 (blue)
       ctx.strokeStyle = 'rgba(0, 150, 255, 0.8)'
       ctx.lineWidth = 3
       ctx.shadowBlur = 15
       ctx.shadowColor = 'rgba(0, 150, 255, 0.4)'
-      
+
       ctx.beginPath()
       points1.forEach((point, i) => {
         if (i === 0) ctx.moveTo(point.x, point.y)
         else ctx.lineTo(point.x, point.y)
       })
       ctx.stroke()
-      
+
       // Draw channel 2 (orange)
       ctx.strokeStyle = 'rgba(255, 100, 0, 0.8)'
       ctx.shadowColor = 'rgba(255, 100, 0, 0.4)'
-      
+
       ctx.beginPath()
       points2.forEach((point, i) => {
         if (i === 0) ctx.moveTo(point.x, point.y)
@@ -304,83 +313,83 @@ const FluidVisualizer = () => {
       ctx.fillText('20Hz', 10, canvas.height - 10)
       ctx.textAlign = 'right'
       ctx.fillText('20kHz', canvas.width - 10, canvas.height - 10)
-      
+
       // Draw detailed frequency grid
       ctx.strokeStyle = '#333333'
       ctx.lineWidth = 1
       ctx.setLineDash([1, 3])
-      
+
       // Major frequency markers optimized for musical content
-       const majorFreqs = [50, 100, 200, 400, 800, 1200, 1600, 2000, 2500, 3000, 4000, 8000, 16000]
-       majorFreqs.forEach(freq => {
-         // Calculate x position using the same musical frequency mapping
-         let x
-         if (freq <= 200) {
-           const subPos = Math.pow((freq - 20) / 180, 1/0.7)
-           x = (subPos * 0.15) * canvas.width
-         } else if (freq <= 4000) {
-           const subPos = (freq - 200) / 3800
-           x = (0.15 + subPos * 0.6) * canvas.width
-         } else {
-           const subPos = Math.log(freq / 4000) / Math.log(5)
-           x = (0.75 + subPos * 0.25) * canvas.width
-         }
+      const majorFreqs = [50, 100, 200, 400, 800, 1200, 1600, 2000, 2500, 3000, 4000, 8000, 16000]
+      majorFreqs.forEach((freq) => {
+        // Calculate x position using the same musical frequency mapping
+        let x
+        if (freq <= 200) {
+          const subPos = Math.pow((freq - 20) / 180, 1 / 0.7)
+          x = subPos * 0.15 * canvas.width
+        } else if (freq <= 4000) {
+          const subPos = (freq - 200) / 3800
+          x = (0.15 + subPos * 0.6) * canvas.width
+        } else {
+          const subPos = Math.log(freq / 4000) / Math.log(5)
+          x = (0.75 + subPos * 0.25) * canvas.width
+        }
         ctx.beginPath()
         ctx.moveTo(x, 0)
         ctx.lineTo(x, canvas.height - 50)
         ctx.stroke()
-        
+
         // Major frequency labels
         ctx.fillStyle = '#cccccc'
         ctx.font = '10px Arial'
         ctx.textAlign = 'center'
         let label
         if (freq >= 1000) {
-          label = (freq / 1000) + 'k'
+          label = freq / 1000 + 'k'
         } else {
           label = freq + ''
         }
         ctx.fillText(label, x, canvas.height - 35)
       })
-      
+
       // Minor frequency markers
-       ctx.strokeStyle = '#222222'
-       ctx.setLineDash([1, 5])
-       const minorFreqs = [30, 60, 150, 300, 600, 1000, 1400, 1800, 2200, 2800, 3500, 6000, 12000]
-       minorFreqs.forEach(freq => {
-         // Calculate x position using the same musical frequency mapping
-         let x
-         if (freq <= 200) {
-           const subPos = Math.pow((freq - 20) / 180, 1/0.7)
-           x = (subPos * 0.15) * canvas.width
-         } else if (freq <= 4000) {
-           const subPos = (freq - 200) / 3800
-           x = (0.15 + subPos * 0.6) * canvas.width
-         } else {
-           const subPos = Math.log(freq / 4000) / Math.log(5)
-           x = (0.75 + subPos * 0.25) * canvas.width
-         }
+      ctx.strokeStyle = '#222222'
+      ctx.setLineDash([1, 5])
+      const minorFreqs = [30, 60, 150, 300, 600, 1000, 1400, 1800, 2200, 2800, 3500, 6000, 12000]
+      minorFreqs.forEach((freq) => {
+        // Calculate x position using the same musical frequency mapping
+        let x
+        if (freq <= 200) {
+          const subPos = Math.pow((freq - 20) / 180, 1 / 0.7)
+          x = subPos * 0.15 * canvas.width
+        } else if (freq <= 4000) {
+          const subPos = (freq - 200) / 3800
+          x = (0.15 + subPos * 0.6) * canvas.width
+        } else {
+          const subPos = Math.log(freq / 4000) / Math.log(5)
+          x = (0.75 + subPos * 0.25) * canvas.width
+        }
         ctx.beginPath()
         ctx.moveTo(x, canvas.height - 50)
         ctx.lineTo(x, canvas.height - 45)
         ctx.stroke()
       })
-      
+
       // Draw decibel scale
       ctx.setLineDash([])
       ctx.strokeStyle = '#444444'
       ctx.lineWidth = 1
-      
+
       // Horizontal dB grid lines
       const dbLevels = [-60, -40, -20, -10, -6, -3, 0]
-      dbLevels.forEach(db => {
+      dbLevels.forEach((db) => {
         const y = canvas.height - 50 - ((db + 60) / 60) * (canvas.height - 50)
         if (y >= 0 && y <= canvas.height - 50) {
           ctx.beginPath()
           ctx.moveTo(0, y)
           ctx.lineTo(canvas.width, y)
           ctx.stroke()
-          
+
           // dB labels
           ctx.fillStyle = db === 0 ? '#ff6666' : '#999999'
           ctx.font = '9px Arial'
@@ -388,7 +397,7 @@ const FluidVisualizer = () => {
           ctx.fillText(db + 'dB', canvas.width - 5, y - 2)
         }
       })
-      
+
       ctx.setLineDash([])
 
       // Draw based on available input

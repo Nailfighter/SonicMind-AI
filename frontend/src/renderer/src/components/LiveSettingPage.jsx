@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import Knob from './Knob'
 import Slider from './Slider'
+import FluidVisualizer from './FluidVisualizer'
 
 const LiveSettingPage = ({ profile, onBack }) => {
   // State for effect knob values
@@ -114,30 +115,9 @@ const LiveSettingPage = ({ profile, onBack }) => {
         <div className="relative z-10 w-full h-full flex p-4 pt-16">
           {/* Left Column - Much Wider */}
           <div className="flex-[3] flex flex-col mr-4">
-            {/* Top Left - Waveform Display */}
-            <div className="flex-1 bg-white rounded-lg shadow-lg border border-gray-200 mb-2 flex items-center justify-center">
-              <div className="w-full h-full flex items-center justify-center">
-                {/* Waveform placeholder */}
-                <div className="w-full h-16 flex items-center justify-center">
-                  <svg className="w-full h-12 text-gray-300" viewBox="0 0 400 80" fill="none">
-                    <path
-                      d="M20,40 Q60,10 100,40 T180,40 T260,40 T340,40 T380,40"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      fill="none"
-                      className="animate-pulse"
-                    />
-                    <path
-                      d="M20,50 Q60,70 100,50 T180,50 T260,50 T340,50 T380,50"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      fill="none"
-                      className="animate-pulse"
-                      style={{ animationDelay: '0.5s' }}
-                    />
-                  </svg>
-                </div>
-              </div>
+            {/* Top Left - Live Audio Visualizer */}
+            <div className="flex-1 bg-black rounded-lg shadow-lg border border-gray-200 mb-2 overflow-hidden">
+              <FluidVisualizer />
             </div>
 
             {/* Bottom Left - Live EQ Control */}
