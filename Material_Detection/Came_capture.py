@@ -40,5 +40,7 @@ def capture_all_cameras(save_folder="captured_images", camera_indices=[0, 1, 2])
         cap.release()
 
     print("Capture complete. All cameras processed.")
-    
-capture_all_cameras()
+
+
+if __name__ == "__main__":
+    capture_all_cameras()

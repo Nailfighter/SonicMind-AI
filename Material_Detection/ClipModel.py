@@ -1,53 +1,11 @@
 import os
 import torch
-import clip
 from PIL import Image
-
-# Pick device
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-# Load CLIP model + preprocess
-# ViT-L/14 is a larger, more powerful model.
-model, preprocess = clip.load("ViT-L/14", device=device)
-
-# Folder where OpenCV saved images
-
-image_folder = "captured_images"
-
-# Use prompt ensembling for materials. Each material has multiple descriptive prompts.
-material_templates = {
-    "Wood": [
-        "a photo of wood texture", "a close-up of a wooden surface", "natural wood grain"
-    ],
-    "Metal": [
-        "a photo of brushed metal", "a shiny metallic surface", "a sheet of metal"
-    ],
-    "Glass": [
-        "a photo of clear glass", "a reflective glass pane", "a glass window"
-    ],
-    "Concrete": [
-        "a photo of rough concrete", "a solid concrete wall", "a concrete floor"
-    ],
-    "Fabric": [
-        "a photo of soft fabric", "a woven textile material", "a cloth texture"
-    ],
-    "Plastic": [
-        "a photo of smooth plastic", "a molded plastic object", "a sheet of plastic"
-    ],
-    "Person": [
-        "a photo of a person", "a silhouette of a person", "a person standing"
-    ]
-}
-
-# Define acoustic properties with descriptive prompts
-acoustic_labels = [
-    "a photo of a hard, sound-reflective surface",
-    "a photo of a soft, sound-absorbent surface",
-    "a photo of a textured, sound-diffusing surface"
-]
+from transformers import CLIPProcessor, CLIPModel
+from .Came_capture import capture_all_cameras
 
 
-def classify_image_ensembled(image_features, templates):
+def classify_image_ensembled(image_features, templates, model, processor, device):
     """
     Classifies an image using prompt ensembling.
     Calculates the average similarity across multiple prompts for each class.
@@ -55,10 +13,11 @@ def classify_image_ensembled(image_features, templates):
     class_predictions = {}
 
     for class_name, prompts in templates.items():
-        text_tokens = clip.tokenize(prompts).to(device)
+        inputs = processor(text=prompts, return_tensors="pt", padding=True)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
 
         with torch.no_grad():
-            text_features = model.encode_text(text_tokens)
+            text_features = model.get_text_features(**inputs)
             text_features /= text_features.norm(dim=-1, keepdim=True)
 
             # Compute similarity for all prompts in the class
@@ -77,12 +36,13 @@ def classify_image_ensembled(image_features, templates):
     return sorted_predictions
 
 
-def classify_image(image_features, text_labels):
+def classify_image(image_features, text_labels, model, processor, device):
     """Classifies an image given its features and a list of text labels."""
-    text_tokens = clip.tokenize(text_labels).to(device)
+    inputs = processor(text=text_labels, return_tensors="pt", padding=True)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
 
     with torch.no_grad():
-        text_features = model.encode_text(text_tokens)
+        text_features = model.get_text_features(**inputs)
 
     # Normalize features
     text_features /= text_features.norm(dim=-1, keepdim=True)
@@ -97,44 +57,100 @@ def classify_image(image_features, text_labels):
     return [(text_labels[i], v.item()) for i, v in zip(indices, values)]
 
 
-# Loop through each saved image in the folder
-for img_name in os.listdir(image_folder):
-    if not img_name.lower().endswith((".jpg", ".png", ".jpeg")):
-        continue  # skip non-image files
+def run_camera_and_analysis(model, processor, device, image_folder, material_templates, acoustic_labels):
+    # Call the function to capture images
+    capture_all_cameras()
 
-    img_path = os.path.join(image_folder, img_name)
+    # Now, proceed with the analysis of the captured images
+    # Loop through each saved image in the folder
+    for img_name in os.listdir(image_folder):
+        if not img_name.lower().endswith((".jpg", ".png", ".jpeg")):
+            continue  # skip non-image files
 
-    # Preprocess image
-    image = preprocess(Image.open(img_path)).unsqueeze(0).to(device)
+        img_path = os.path.join(image_folder, img_name)
 
-    # Encode image
-    with torch.no_grad():
-        image_features = model.encode_image(image)
+        # Preprocess image
+        image = Image.open(img_path)
+        inputs = processor(text=None, images=image,
+                           return_tensors="pt", padding=True)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
 
-    # Normalize image features
-    image_features /= image_features.norm(dim=-1, keepdim=True)
+        # Encode image
+        with torch.no_grad():
+            image_features = model.get_image_features(**inputs)
 
-    # Classify material and acoustic properties
-    material_predictions = classify_image_ensembled(
-        image_features, material_templates)
-    acoustic_predictions = classify_image(image_features, acoustic_labels)
+        # Normalize image features
+        image_features /= image_features.norm(dim=-1, keepdim=True)
 
-    # --- Analysis ---
-    print(f"--- Analysis for {img_name} ---")
+        # Classify material and acoustic properties
+        material_predictions = classify_image_ensembled(
+            image_features, material_templates, model, processor, device)
+        acoustic_predictions = classify_image(
+            image_features, acoustic_labels, model, processor, device)
 
-    # Filter out "Person" from material predictions
-    material_predictions = [
-        pred for pred in material_predictions if pred[0] != "Person"]
+        # --- Analysis ---
+        print(f"--- Analysis for {img_name} ---")
 
-    # Best material prediction (after filtering)
-    if material_predictions:
-        best_material, material_confidence = material_predictions[0]
+        # Filter out "Person" from material predictions
+        material_predictions = [
+            pred for pred in material_predictions if pred[0] != "Person"]
+
+        # Best material prediction (after filtering)
+        if material_predictions:
+            best_material, material_confidence = material_predictions[0]
+            print(
+                f"Material: {best_material} (confidence: {material_confidence:.2f})")
+        else:
+            print("Material: Could not determine a material other than a person.")
+
+        # Best acoustic prediction
+        best_acoustic, acoustic_confidence = acoustic_predictions[0]
         print(
-            f"Material: {best_material} (confidence: {material_confidence:.2f})")
-    else:
-        print("Material: Could not determine a material other than a person.")
+            f"Acoustic Property: {best_acoustic} (confidence: {acoustic_confidence:.2f})\n")
 
-    # Best acoustic prediction
-    best_acoustic, acoustic_confidence = acoustic_predictions[0]
-    print(
-        f"Acoustic Property: {best_acoustic} (confidence: {acoustic_confidence:.2f})\n")
+
+if __name__ == "__main__":
+    # Pick device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Load pre-trained CLIP model and processor from the Hugging Face Hub
+    model_path = "openai/clip-vit-large-patch14"
+    model = CLIPModel.from_pretrained(model_path).to(device)
+    processor = CLIPProcessor.from_pretrained(model_path)
+
+    # Folder where OpenCV saved images
+    image_folder = "captured_images"
+
+    # Use prompt ensembling for materials. Each material has multiple descriptive prompts.
+    material_templates = {
+        "Wood": [
+            "a photo of wood texture", "a close-up of a wooden surface", "natural wood grain"
+        ],
+        "Metal": [
+            "a photo of brushed metal", "a shiny metallic surface", "a sheet of metal"
+        ],
+        "Glass": [
+            "a photo of clear glass", "a reflective glass pane", "a glass window"
+        ],
+        "Concrete": [
+            "a photo of rough concrete", "a solid concrete wall", "a concrete floor"
+        ],
+        "Fabric": [
+            "a photo of soft fabric", "a woven textile material", "a cloth texture"
+        ],
+        "Plastic": [
+            "a photo of smooth plastic", "a molded plastic object", "a sheet of plastic"
+        ],
+        "Person": [
+            "a photo of a person", "a silhouette of a person", "a person standing"
+        ]
+    }
+
+    # Define acoustic properties with descriptive prompts
+    acoustic_labels = [
+        "a photo of a hard, sound-reflective surface",
+        "a photo of a soft, sound-absorbent surface",
+        "a photo of a textured, sound-diffusing surface"
+    ]
+    run_camera_and_analysis(model, processor, device, image_folder,
+                            material_templates, acoustic_labels)
