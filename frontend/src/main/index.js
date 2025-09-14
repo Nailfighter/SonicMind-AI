@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { spawn } from 'child_process'
 
 function createWindow() {
   // Create the browser window.
@@ -51,6 +52,118 @@ app.whenReady().then(() => {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  // IPC handler for calling Python backend with route support
+  ipcMain.handle('get-backend-data', async (event, route = 'time') => {
+    return new Promise((resolve, reject) => {
+      const pythonScript = join(__dirname, '../../../backend/routes.py')
+      const pythonProcess = spawn('python', [pythonScript, route])
+
+      let data = ''
+      let error = ''
+
+      pythonProcess.stdout.on('data', (chunk) => {
+        data += chunk.toString()
+      })
+
+      pythonProcess.stderr.on('data', (chunk) => {
+        error += chunk.toString()
+      })
+
+      pythonProcess.on('close', (code) => {
+        if (code === 0) {
+          try {
+            const result = JSON.parse(data)
+            resolve(result)
+          } catch (parseError) {
+            reject(new Error(`Failed to parse Python output: ${parseError.message}`))
+          }
+        } else {
+          reject(new Error(`Python script failed with code ${code}: ${error}`))
+        }
+      })
+
+      pythonProcess.on('error', (err) => {
+        reject(new Error(`Failed to start Python process: ${err.message}`))
+      })
+    })
+  })
+
+  // IPC handler for audio processing
+  ipcMain.handle('process-audio', async (event, audioData, filename, processType) => {
+    return new Promise((resolve, reject) => {
+      const fs = require('fs')
+      const path = require('path')
+      const os = require('os')
+
+      try {
+        // Create a temporary file for the audio data
+        const tempDir = os.tmpdir()
+        const tempFileName = `audio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.tmp`
+        const tempFilePath = path.join(tempDir, tempFileName)
+
+        // Decode base64 data and write to temporary file
+        const audioBuffer = Buffer.from(audioData, 'base64')
+        fs.writeFileSync(tempFilePath, audioBuffer)
+
+        const pythonScript = join(__dirname, '../../../backend/routes.py')
+        const pythonProcess = spawn('python', [
+          pythonScript,
+          'audio',
+          tempFilePath,
+          filename,
+          processType
+        ])
+
+        let data = ''
+        let error = ''
+
+        pythonProcess.stdout.on('data', (chunk) => {
+          data += chunk.toString()
+        })
+
+        pythonProcess.stderr.on('data', (chunk) => {
+          error += chunk.toString()
+        })
+
+        pythonProcess.on('close', (code) => {
+          // Clean up temporary file
+          try {
+            if (fs.existsSync(tempFilePath)) {
+              fs.unlinkSync(tempFilePath)
+            }
+          } catch (cleanupError) {
+            console.error('Error cleaning up temp file:', cleanupError)
+          }
+
+          if (code === 0) {
+            try {
+              const result = JSON.parse(data)
+              resolve(result)
+            } catch (parseError) {
+              reject(new Error(`Failed to parse Python output: ${parseError.message}`))
+            }
+          } else {
+            reject(new Error(`Python script failed with code ${code}: ${error}`))
+          }
+        })
+
+        pythonProcess.on('error', (err) => {
+          // Clean up temporary file on error
+          try {
+            if (fs.existsSync(tempFilePath)) {
+              fs.unlinkSync(tempFilePath)
+            }
+          } catch (cleanupError) {
+            console.error('Error cleaning up temp file:', cleanupError)
+          }
+          reject(new Error(`Failed to start Python process: ${err.message}`))
+        })
+      } catch (writeError) {
+        reject(new Error(`Failed to write temporary file: ${writeError.message}`))
+      }
+    })
+  })
 
   createWindow()
 
