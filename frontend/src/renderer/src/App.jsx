@@ -7,6 +7,7 @@ import DeviceSettingsPage from './components/DeviceSettingsPage.jsx'
 import LoadingPage from './components/LoadingPage.jsx'
 import LiveSettingPage from './components/LiveSettingPage.jsx'
 
+
 const App = () => {
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [currentPage, setCurrentPage] = useState('profiles') // 'profiles', 'profile', 'upload', 'devices', 'loading', or 'live'

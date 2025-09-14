@@ -14,7 +14,11 @@ function createWindow() {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      webSecurity: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      allowRunningInsecureContent: false
     }
   })
 
@@ -51,7 +55,7 @@ app.whenReady().then(() => {
   })
 
   // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  ipcMain.on('ping', () => {})
 
   // IPC handler for calling Python backend with route support
   ipcMain.handle('get-backend-data', async (event, route = 'time') => {
@@ -133,7 +137,7 @@ app.whenReady().then(() => {
               fs.unlinkSync(tempFilePath)
             }
           } catch (cleanupError) {
-            console.error('Error cleaning up temp file:', cleanupError)
+            // Silently handle cleanup errors
           }
 
           if (code === 0) {
@@ -155,7 +159,7 @@ app.whenReady().then(() => {
               fs.unlinkSync(tempFilePath)
             }
           } catch (cleanupError) {
-            console.error('Error cleaning up temp file:', cleanupError)
+            // Silently handle cleanup errors
           }
           reject(new Error(`Failed to start Python process: ${err.message}`))
         })
