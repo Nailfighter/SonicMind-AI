@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: frontend
+appId: com.sonicmind.ai
+productName: SonicMind-AI
 directories:
   buildResources: build
 files:
@@ -8,15 +8,29 @@ files:
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  # Include Python backend executable
+  - '../backend/dist/SonicMind-Backend.exe'
+  # Include model files
+  - '../backend/fma_eq_model_npy.pth'
 asarUnpack:
   - resources/**
+  - '../backend/dist/SonicMind-Backend.exe'
+  - '../backend/fma_eq_model_npy.pth'
 win:
-  executableName: frontend
+  executableName: SonicMind-AI
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  include: build/installer.nsh
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
