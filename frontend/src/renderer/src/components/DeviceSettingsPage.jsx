@@ -62,12 +62,15 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
 
   const handleContinue = () => {
     if (selectedAudienceCamera && selectedArtistCamera && selectedArtistMic) {
-      console.log('Device settings completed:', {
-        audienceCamera: selectedAudienceCamera,
-        artistCamera: selectedArtistCamera,
-        artistMic: selectedArtistMic
-      })
-      onContinue()
+      // Create device settings dictionary
+      const deviceSettings = {
+        AudienceCamera: selectedAudienceCamera,
+        ArtistCamera: selectedArtistCamera,
+        ArtistMicrophone: selectedArtistMic
+      }
+      
+      console.log('Device settings completed:', deviceSettings)
+      onContinue(deviceSettings)
     }
   }
 
