@@ -3,22 +3,15 @@ import './assets/main.css'
 import ProfileSelector from './components/ProfileSelector.jsx'
 import ProfilePage from './components/ProfilePage.jsx'
 import UploadVideoPage from './components/UploadVideoPage.jsx'
-import UploadSettingsPage from './components/UploadSettingsPage.jsx'
 import DeviceSettingsPage from './components/DeviceSettingsPage.jsx'
 import LoadingPage from './components/LoadingPage.jsx'
 import LiveSettingPage from './components/LiveSettingPage.jsx'
-import ConnectionStatus from './components/ConnectionStatus.jsx'
-import ConnectionHealthMonitor from './components/ConnectionHealthMonitor.jsx'
-import SocketTest from './components/SocketTest.jsx'
-import ApiDebugTest from './components/ApiDebugTest.jsx'
 
 const App = () => {
   const [selectedProfile, setSelectedProfile] = useState(null)
-  const [currentPage, setCurrentPage] = useState('profiles') // 'profiles', 'profile', 'upload', 'upload-settings', 'devices', 'loading', 'live', 'socket-test', or 'api-debug'
+  const [currentPage, setCurrentPage] = useState('profiles') // 'profiles', 'profile', 'upload', 'devices', 'loading', 'live'
   const [selectedMode, setSelectedMode] = useState(null)
   const [deviceSettings, setDeviceSettings] = useState(null)
-  const [uploadData, setUploadData] = useState(null)
-  
 
   // Sample profiles for demonstration
   const profiles = [
@@ -75,83 +68,7 @@ const App = () => {
     setCurrentPage('devices')
   }
 
-  const handleUploadComplete = (uploadData) => {
-    setUploadData(uploadData)
-    setCurrentPage('upload-settings')
-  }
-
-  const handleUploadSettingsComplete = () => {
-    setCurrentPage('loading')
-  }
-
-  const handleBackToUpload = () => {
-    setCurrentPage('upload')
-    setUploadData(null)
-  }
-
-  const handleSocketTest = () => {
-    setCurrentPage('socket-test')
-  }
-
-  const handleApiDebugTest = () => {
-    setCurrentPage('api-debug')
-  }
-
-  console.log('Current page:', currentPage, 'Selected profile:', selectedProfile)
-
-  // Socket Test page (for development)
-  if (currentPage === 'socket-test') {
-    return (
-      <div className="w-screen h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
-        <div className="mb-4">
-          <button
-            onClick={handleBackToProfiles}
-            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded transition-colors"
-          >
-            ← Back to Profiles
-          </button>
-        </div>
-        <SocketTest />
-      </div>
-    )
-  }
-
-  // API Debug Test page (for development)
-  if (currentPage === 'api-debug') {
-    return (
-      <div className="w-screen h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
-        <div className="mb-4">
-          <button
-            onClick={handleBackToProfiles}
-            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded transition-colors"
-          >
-            ← Back to Profiles
-          </button>
-        </div>
-        <ApiDebugTest />
-      </div>
-    )
-  }
-
   if (currentPage === 'upload' && selectedProfile) {
-    return (
-      <UploadVideoPage 
-        profile={selectedProfile} 
-        onBack={handleBackToProfile}
-        onContinue={handleUploadComplete}
-      />
-    )
-  }
-
-  if (currentPage === 'upload-settings' && selectedProfile && uploadData) {
-    return (
-      <UploadSettingsPage 
-        profile={selectedProfile} 
-        uploadData={uploadData}
-        onBack={handleBackToUpload}
-        onContinue={handleUploadSettingsComplete}
-      />
-    )
     return <UploadVideoPage profile={selectedProfile} onBack={handleBackToProfile} />
   }
 
@@ -171,8 +88,8 @@ const App = () => {
 
   if (currentPage === 'live' && selectedProfile) {
     return (
-      <LiveSettingPage 
-        profile={selectedProfile} 
+      <LiveSettingPage
+        profile={selectedProfile}
         deviceSettings={deviceSettings}
         onBack={handleBackToDevices}
       />
@@ -210,20 +127,12 @@ const App = () => {
           }}
         />
 
-        {/* Connection Status */}
-        <ConnectionStatus position="top-right" />
-        
-        {/* Connection Health Monitor */}
-        <ConnectionHealthMonitor position="bottom-left" />
-
         {/* Main content */}
         <div className="relative z-10 w-full h-full flex items-center justify-center p-8">
           <ProfileSelector
             profiles={profiles}
             onProfileSelect={handleProfileSelect}
             onCreateNew={handleCreateNew}
-            onSocketTest={handleSocketTest}
-            onApiDebugTest={handleApiDebugTest}
           />
         </div>
       </div>

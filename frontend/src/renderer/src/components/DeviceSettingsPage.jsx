@@ -22,39 +22,61 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
 
         // For demo purposes, we'll use the same camera list for both audience and artist
         // In a real app, you might want to differentiate or allow the same camera for both
-        setAudienceCameras(
-          cameras.map((device, index) => ({
-            id: device.deviceId,
-            name: device.label || `Camera ${index + 1}`,
-            type: 'camera'
-          }))
-        )
+        const audienceCamList = cameras.map((device, index) => ({
+          id: device.deviceId,
+          name: device.label || `Camera ${index + 1}`,
+          type: 'camera'
+        }))
+        setAudienceCameras(audienceCamList)
 
-        setArtistCameras(
-          cameras.map((device, index) => ({
-            id: device.deviceId,
-            name: device.label || `Camera ${index + 1}`,
-            type: 'camera'
-          }))
-        )
+        const artistCamList = cameras.map((device, index) => ({
+          id: device.deviceId,
+          name: device.label || `Camera ${index + 1}`,
+          type: 'camera'
+        }))
+        setArtistCameras(artistCamList)
 
-        setArtistMicrophones(
-          microphones.map((device, index) => ({
-            id: device.deviceId,
-            name: device.label || `Microphone ${index + 1}`,
-            type: 'microphone'
-          }))
-        )
+        const micList = microphones.map((device, index) => ({
+          id: device.deviceId,
+          name: device.label || `Microphone ${index + 1}`,
+          type: 'microphone'
+        }))
+        setArtistMicrophones(micList)
+
+        // Auto-select first available options
+        if (audienceCamList.length > 0) {
+          setSelectedAudienceCamera(audienceCamList[0].id)
+        }
+        if (artistCamList.length > 0) {
+          setSelectedArtistCamera(artistCamList[0].id)
+        }
+        if (micList.length > 0) {
+          setSelectedArtistMic(micList[0].id)
+        }
 
         setIsLoading(false)
-        } catch (error) {
-          console.error('Error accessing media devices:', error)
-          // Fallback to mock devices for testing when permission denied
-          setAudienceCameras([{ id: 'mock-camera', name: 'Mock Camera (Testing)', type: 'camera' }])
-          setArtistCameras([{ id: 'mock-camera-2', name: 'Mock Artist Camera (Testing)', type: 'camera' }])
-          setArtistMicrophones([{ id: 'mock-mic', name: 'Mock Microphone (Testing)', type: 'microphone' }])
-          setIsLoading(false)
+      } catch (error) {
+        console.error('Error accessing media devices:', error)
+        // Fallback to mock devices for testing when permission denied
+        const mockAudienceCam = { id: 'mock-camera', name: 'Mock Camera (Testing)', type: 'camera' }
+        const mockArtistCam = {
+          id: 'mock-camera-2',
+          name: 'Mock Artist Camera (Testing)',
+          type: 'camera'
         }
+        const mockMic = { id: 'mock-mic', name: 'Mock Microphone (Testing)', type: 'microphone' }
+
+        setAudienceCameras([mockAudienceCam])
+        setArtistCameras([mockArtistCam])
+        setArtistMicrophones([mockMic])
+
+        // Auto-select mock devices
+        setSelectedAudienceCamera(mockAudienceCam.id)
+        setSelectedArtistCamera(mockArtistCam.id)
+        setSelectedArtistMic(mockMic.id)
+
+        setIsLoading(false)
+      }
     }
 
     loadDevices()
@@ -67,13 +89,17 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
       ArtistCamera: selectedArtistCamera || null,
       ArtistMicrophone: selectedArtistMic || null
     }
-    
+
     console.log('Device settings completed:', deviceSettings)
     onContinue(deviceSettings)
   }
 
   // Allow continue if at least one device is selected, or allow user to continue without devices for testing
-  const canContinue = selectedAudienceCamera || selectedArtistCamera || selectedArtistMic || audienceCameras.length === 0
+  const canContinue =
+    selectedAudienceCamera ||
+    selectedArtistCamera ||
+    selectedArtistMic ||
+    audienceCameras.length === 0
 
   return (
     <div className="w-screen h-screen bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden">
@@ -101,22 +127,6 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
         <span className="font-medium">Back</span>
       </button>
 
-      {/* Header */}
-      <div className="relative z-10 flex justify-end items-center p-6">
-        {/* Profile info */}
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-800 via-gray-700 to-gray-900 flex items-center justify-center shadow-lg">
-            <span className="text-lg font-bold text-white">
-              {profile.name.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <div className="text-right">
-            <h3 className="text-lg font-bold text-gray-800">{profile.name}</h3>
-            <p className="text-sm text-gray-600">Pro Mode</p>
-          </div>
-        </div>
-      </div>
-
       {/* Main content */}
       <div
         className="relative z-10 flex flex-col items-center justify-start h-full px-4 sm:px-6 lg:px-8 pt-12 pb-8 overflow-y-auto"
@@ -133,13 +143,13 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
               <p className="text-base sm:text-lg text-gray-600">Detecting devices...</p>
             </div>
           ) : (
-            <div className="space-y-2 sm:space-y-3">
+            <div className="space-y-2">
               {/* Audience Camera */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-3 sm:p-4">
-                <div className="flex items-center space-x-3 sm:space-x-4 mb-2 sm:mb-3">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+              <div className="bg-white rounded-lg shadow-md border border-gray-200 p-2">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center shadow-md">
                     <svg
-                      className="w-5 h-5 sm:w-6 sm:h-6 text-white"
+                      className="w-4 h-4 text-white"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -153,16 +163,15 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-800">Audience Camera</h3>
-                    <p className="text-sm text-gray-600">Camera for audience view</p>
+                    <h3 className="text-sm font-bold text-gray-800">Audience Camera</h3>
+                    <p className="text-xs text-gray-600">Camera for audience view</p>
                   </div>
                 </div>
                 <select
                   value={selectedAudienceCamera}
                   onChange={(e) => setSelectedAudienceCamera(e.target.value)}
-                  className="w-full p-3 sm:p-4 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200"
+                  className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-cyan-500 focus:border-transparent transition-all duration-200"
                 >
-                  <option value="">Choose camera...</option>
                   {audienceCameras.map((camera) => (
                     <option key={camera.id} value={camera.id}>
                       {camera.name}
@@ -172,11 +181,11 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
               </div>
 
               {/* Artist Camera */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-3 sm:p-4">
-                <div className="flex items-center space-x-3 sm:space-x-4 mb-2 sm:mb-3">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
+              <div className="bg-white rounded-lg shadow-md border border-gray-200 p-2">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-md">
                     <svg
-                      className="w-5 h-5 sm:w-6 sm:h-6 text-white"
+                      className="w-4 h-4 text-white"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -190,16 +199,15 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-800">Artist Camera</h3>
-                    <p className="text-sm text-gray-600">Camera for artist view</p>
+                    <h3 className="text-sm font-bold text-gray-800">Artist Camera</h3>
+                    <p className="text-xs text-gray-600">Camera for artist view</p>
                   </div>
                 </div>
                 <select
                   value={selectedArtistCamera}
                   onChange={(e) => setSelectedArtistCamera(e.target.value)}
-                  className="w-full p-3 sm:p-4 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                  className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-green-500 focus:border-transparent transition-all duration-200"
                 >
-                  <option value="">Choose camera...</option>
                   {artistCameras.map((camera) => (
                     <option key={camera.id} value={camera.id}>
                       {camera.name}
@@ -209,11 +217,11 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
               </div>
 
               {/* Artist Microphone */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-3 sm:p-4">
-                <div className="flex items-center space-x-3 sm:space-x-4 mb-2 sm:mb-3">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center shadow-lg">
+              <div className="bg-white rounded-lg shadow-md border border-gray-200 p-2">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center shadow-md">
                     <svg
-                      className="w-5 h-5 sm:w-6 sm:h-6 text-white"
+                      className="w-4 h-4 text-white"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -227,18 +235,15 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-800">
-                      Artist Microphone
-                    </h3>
-                    <p className="text-sm text-gray-600">Microphone for audio input</p>
+                    <h3 className="text-sm font-bold text-gray-800">Artist Microphone</h3>
+                    <p className="text-xs text-gray-600">Microphone for audio input</p>
                   </div>
                 </div>
                 <select
                   value={selectedArtistMic}
                   onChange={(e) => setSelectedArtistMic(e.target.value)}
-                  className="w-full p-3 sm:p-4 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                  className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
                 >
-                  <option value="">Choose microphone...</option>
                   {artistMicrophones.map((mic) => (
                     <option key={mic.id} value={mic.id}>
                       {mic.name}
@@ -293,27 +298,19 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
           </div>
 
           {/* Continue Button - Moved much higher */}
-          <div className="text-center mt-1 sm:mt-2 space-y-2">
+          <div className="text-center mt-4 space-y-2">
             <button
               onClick={handleContinue}
               className="bg-gray-800 text-white px-8 sm:px-12 py-3 sm:py-4 rounded-full font-semibold text-base sm:text-lg hover:bg-gray-700 transition-all duration-300 shadow-lg hover:shadow-xl block mx-auto"
             >
               Continue to Live Interface
             </button>
-            
+
             {!canContinue && (
               <div className="text-gray-500 text-sm">
                 Select devices above or continue with current selection
               </div>
             )}
-            
-            {/* Skip button for quick testing */}
-            <button
-              onClick={() => onContinue({ AudienceCamera: null, ArtistCamera: null, ArtistMicrophone: null })}
-              className="text-gray-600 hover:text-gray-800 text-sm underline transition-colors"
-            >
-              Skip Device Setup (Testing)
-            </button>
           </div>
         </div>
       </div>

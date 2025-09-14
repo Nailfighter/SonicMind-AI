@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react'
 import * as Tone from 'tone'
 
-const FluidVisualizer = () => {
+const FluidVisualizer = ({ analyser, audioContext, isPlaying }) => {
   const canvasRef = useRef(null)
   const animationRef = useRef()
   const smoothingBuffer = useRef(new Map()) // Smoothing buffer for temporal smoothing
@@ -32,22 +32,29 @@ const FluidVisualizer = () => {
       try {
         await Tone.start()
 
-        // Try to get microphone input
-        try {
-          micInput = new Tone.UserMedia()
-          await micInput.open()
+        // Use external analyser if provided (from video), otherwise try microphone
+        if (analyser && audioContext) {
+          // Use external analyser from video
+          analyser1 = analyser
+          analyser2 = analyser // Use same analyser for both channels
+        } else {
+          // Try to get microphone input
+          try {
+            micInput = new Tone.UserMedia()
+            await micInput.open()
 
-          // Create analysers for stereo visualization
-          analyser1 = new Tone.Analyser('fft', 2048)
-          analyser2 = new Tone.Analyser('fft', 2048)
+            // Create analysers for stereo visualization
+            analyser1 = new Tone.Analyser('fft', 2048)
+            analyser2 = new Tone.Analyser('fft', 2048)
 
-          // Connect microphone to both analysers
-          micInput.connect(analyser1)
-          micInput.connect(analyser2)
-        } catch (micError) {
-          // Create analysers for procedural visualization
-          analyser1 = new Tone.Analyser('fft', 2048)
-          analyser2 = new Tone.Analyser('fft', 2048)
+            // Connect microphone to both analysers
+            micInput.connect(analyser1)
+            micInput.connect(analyser2)
+          } catch (micError) {
+            // Create analysers for procedural visualization
+            analyser1 = new Tone.Analyser('fft', 2048)
+            analyser2 = new Tone.Analyser('fft', 2048)
+          }
         }
 
         draw()
@@ -401,7 +408,11 @@ const FluidVisualizer = () => {
       ctx.setLineDash([])
 
       // Draw based on available input
-      if (micInput && analyser1 && analyser2) {
+      if (analyser && audioContext && analyser1) {
+        // Draw from video audio
+        drawChannel(analyser1, 1)
+        drawChannel(analyser1, 2) // Use same analyser for both channels
+      } else if (micInput && analyser1 && analyser2) {
         // Draw both channels from microphone
         drawChannel(analyser1, 1)
         drawChannel(analyser2, 2)
@@ -417,7 +428,9 @@ const FluidVisualizer = () => {
 
       // Status label
       ctx.textAlign = 'left'
-      if (micInput) {
+      if (analyser && audioContext) {
+        ctx.fillText('Video Audio Input', 10, canvas.height - 10)
+      } else if (micInput) {
         ctx.fillText('Microphone Input', 10, canvas.height - 10)
       } else {
         ctx.fillText('Procedural Visualization', 10, canvas.height - 10)
@@ -443,7 +456,7 @@ const FluidVisualizer = () => {
         micInput.close()
       }
     }
-  }, [])
+  }, [analyser, audioContext, isPlaying])
 
   return (
     <canvas

@@ -1,28 +1,65 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import FluidVisualizer from './FluidVisualizer'
 
-const UploadVideoPage = ({ profile, onBack, onContinue }) => {
+const UploadVideoPage = ({ profile, onBack }) => {
   const [uploadedFile, setUploadedFile] = useState(null)
-  const [selectedInstrument, setSelectedInstrument] = useState(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [videoUrl, setVideoUrl] = useState(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [audioContext, setAudioContext] = useState(null)
+  const [analyser, setAnalyser] = useState(null)
+  const [audioSource, setAudioSource] = useState(null)
   const fileInputRef = useRef(null)
-
-  const instruments = [
-    { id: 'guitar', name: 'Guitar', icon: '🎸' },
-    { id: 'piano', name: 'Piano', icon: '🎹' },
-    { id: 'drums', name: 'Drums', icon: '🥁' },
-    { id: 'bass', name: 'Bass', icon: '🎸' },
-    { id: 'vocals', name: 'Vocals', icon: '🎤' },
-    { id: 'violin', name: 'Violin', icon: '🎻' },
-    { id: 'saxophone', name: 'Saxophone', icon: '🎷' },
-    { id: 'trumpet', name: 'Trumpet', icon: '🎺' },
-    { id: 'other', name: 'Other', icon: '🎵' }
-  ]
+  const videoRef = useRef(null)
 
   const handleFileUpload = (file) => {
     if (file && file.type.startsWith('video/')) {
       setUploadedFile(file)
+      const url = URL.createObjectURL(file)
+      setVideoUrl(url)
+      setupAudioContext(url)
     } else {
       alert('Please upload a valid video file')
+    }
+  }
+
+  const setupAudioContext = async (videoUrl) => {
+    try {
+      // Create audio context
+      const AudioContext = window.AudioContext || window.webkitAudioContext
+      const ctx = new AudioContext()
+      setAudioContext(ctx)
+
+      // Wait for the main video element to be ready
+      await new Promise((resolve) => {
+        if (videoRef.current) {
+          if (videoRef.current.readyState >= 1) {
+            resolve()
+          } else {
+            videoRef.current.addEventListener('loadedmetadata', resolve)
+          }
+        } else {
+          resolve()
+        }
+      })
+
+      // Create audio source from the main video element
+      const source = ctx.createMediaElementSource(videoRef.current)
+      setAudioSource(source)
+
+      // Create analyser
+      const analyserNode = ctx.createAnalyser()
+      analyserNode.fftSize = 2048
+      analyserNode.smoothingTimeConstant = 0.8
+      setAnalyser(analyserNode)
+
+      // Connect audio graph
+      source.connect(analyserNode)
+      analyserNode.connect(ctx.destination)
+    } catch (error) {
+      console.error('Error setting up audio context:', error)
     }
   }
 
@@ -52,25 +89,34 @@ const UploadVideoPage = ({ profile, onBack, onContinue }) => {
     }
   }
 
-  const handleInstrumentSelect = (instrument) => {
-    setSelectedInstrument(instrument)
-  }
-
-  const handleContinue = () => {
-    if (uploadedFile && selectedInstrument) {
-      const uploadData = {
-        file: uploadedFile,
-        instrument: selectedInstrument
-      }
-      console.log('Processing video:', uploadedFile.name, 'for instrument:', selectedInstrument.name)
-      onContinue(uploadData)
+  const handleVideoTimeUpdate = () => {
+    if (videoRef.current) {
+      setCurrentTime(videoRef.current.currentTime)
     }
   }
+
+  const handleVideoLoadedMetadata = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration)
+    }
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (videoUrl) {
+        URL.revokeObjectURL(videoUrl)
+      }
+      if (audioContext) {
+        audioContext.close()
+      }
+    }
+  }, [videoUrl, audioContext])
 
   return (
     <div className="w-screen h-screen bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden">
       {/* Grid overlay */}
-      <div 
+      <div
         className="absolute inset-0 opacity-15"
         style={{
           backgroundImage: `
@@ -80,9 +126,9 @@ const UploadVideoPage = ({ profile, onBack, onContinue }) => {
           backgroundSize: '20px 20px'
         }}
       />
-      
+
       {/* Back button - positioned absolutely */}
-      <button 
+      <button
         onClick={() => {
           console.log('Back button clicked!')
           onBack()
@@ -95,39 +141,78 @@ const UploadVideoPage = ({ profile, onBack, onContinue }) => {
         </svg>
         <span className="font-medium">Back</span>
       </button>
-      
-      {/* Header */}
-      <div className="relative z-10 flex justify-end items-center p-6">
-        {/* Profile info */}
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-800 via-gray-700 to-gray-900 flex items-center justify-center shadow-lg">
-            <span className="text-lg font-bold text-white">
-              {profile.name.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <div className="text-right">
-            <h3 className="text-lg font-bold text-gray-800">{profile.name}</h3>
-            <p className="text-sm text-gray-600">Pro Mode</p>
-          </div>
-        </div>
-      </div>
 
       {/* Main content */}
-      <div className="relative z-10 flex flex-col items-center justify-center h-full px-4 sm:px-8 -mt-16" style={{ zIndex: 1 }}>
-        <div className="w-full max-w-2xl">
-          {/* File Upload Section */}
-          <div className="mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-8">
-              Upload Your Video
-            </h2>
-            
+      <div
+        className="relative z-10 flex px-4 sm:px-8 pt-16"
+        style={{ zIndex: 1, height: 'calc(100vh - 200px)' }}
+      >
+        {/* Left Column - Video Player (top) and Upload Area (bottom) - 1/3 width */}
+        <div className="w-1/3 pr-4 flex flex-col">
+          {/* Video Player - 16:9 ratio at top */}
+          {uploadedFile && (
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-gray-800 text-center mb-4">Video Player</h2>
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-2">
+                <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+                  <video
+                    ref={videoRef}
+                    src={videoUrl}
+                    className="w-full h-full object-cover rounded-lg"
+                    onTimeUpdate={handleVideoTimeUpdate}
+                    onLoadedMetadata={handleVideoLoadedMetadata}
+                    onPlay={async () => {
+                      setIsPlaying(true)
+
+                      // Resume audio context if suspended
+                      if (audioContext && audioContext.state === 'suspended') {
+                        await audioContext.resume()
+                      }
+
+                      // Ensure audio context is properly connected
+                      if (videoRef.current && audioContext) {
+                        try {
+                          // If we don't have an audio source or it's disconnected, recreate it
+                          if (!audioSource || !audioSource.context) {
+                            const source = audioContext.createMediaElementSource(videoRef.current)
+                            setAudioSource(source)
+
+                            // Create analyser if not exists
+                            if (!analyser) {
+                              const analyserNode = audioContext.createAnalyser()
+                              analyserNode.fftSize = 2048
+                              analyserNode.smoothingTimeConstant = 0.8
+                              setAnalyser(analyserNode)
+                            }
+
+                            // Connect audio graph
+                            source.connect(analyser)
+                            analyser.connect(audioContext.destination)
+                          }
+                        } catch (error) {
+                          console.error('Error setting up audio on play:', error)
+                        }
+                      }
+                    }}
+                    onPause={() => setIsPlaying(false)}
+                    controls
+                    preload="metadata"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Upload Area - Takes remaining space */}
+          <div className="flex-1 min-h-0">
+            <h2 className="text-lg font-bold text-gray-800 text-center mb-4">Upload Video</h2>
             <div
-              className={`border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center transition-all duration-300 ${
+              className={`border-2 border-dashed rounded-xl p-4 text-center transition-all duration-300 h-full flex flex-col justify-center ${
                 isDragOver
                   ? 'border-cyan-500 bg-cyan-50'
                   : uploadedFile
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-gray-300 bg-white hover:border-gray-400'
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-gray-300 bg-white hover:border-gray-400'
               }`}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
@@ -141,18 +226,28 @@ const UploadVideoPage = ({ profile, onBack, onContinue }) => {
                 onChange={handleFileInputChange}
                 className="hidden"
               />
-              
+
               {uploadedFile ? (
-                <div className="space-y-4">
-                  <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto">
-                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <div className="space-y-3">
+                  <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto">
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">File Uploaded Successfully!</h3>
-                    <p className="text-gray-600 mb-2">{uploadedFile.name}</p>
-                    <p className="text-sm text-gray-500">
+                    <h3 className="text-lg font-bold text-gray-800 mb-1">File Uploaded!</h3>
+                    <p className="text-gray-600 mb-1 text-sm truncate">{uploadedFile.name}</p>
+                    <p className="text-xs text-gray-500">
                       {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
                     </p>
                   </div>
@@ -161,74 +256,54 @@ const UploadVideoPage = ({ profile, onBack, onContinue }) => {
                       e.stopPropagation()
                       setUploadedFile(null)
                     }}
-                    className="text-sm text-gray-500 hover:text-gray-700 underline"
+                    className="text-xs text-gray-500 hover:text-gray-700 underline"
                   >
                     Remove file
                   </button>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center mx-auto">
-                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <div className="space-y-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center mx-auto">
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">
-                      {isDragOver ? 'Drop your video here' : 'Upload Video File'}
+                    <h3 className="text-lg font-bold text-gray-800 mb-1">
+                      {isDragOver ? 'Drop here' : 'Upload Video'}
                     </h3>
-                    <p className="text-gray-600 mb-4">
-                      Drag and drop your video file here, or click to browse
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Supports MP4, MOV, AVI, and other video formats
-                    </p>
+                    <p className="text-gray-600 mb-2 text-sm">Click or drag file</p>
+                    <p className="text-xs text-gray-500">MP4, MOV, AVI</p>
                   </div>
                 </div>
               )}
             </div>
           </div>
-
-          {/* Instrument Selection */}
-          {uploadedFile && (
-            <div className="mb-8">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-8">
-                Select Your Instrument
-              </h2>
-              
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
-                {instruments.map((instrument) => (
-                  <div
-                    key={instrument.id}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
-                      selectedInstrument?.id === instrument.id
-                        ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg'
-                        : 'border-gray-200 bg-white hover:border-purple-300 hover:shadow-md'
-                    }`}
-                    onClick={() => handleInstrumentSelect(instrument)}
-                  >
-                    <div className="text-center">
-                      <div className="text-3xl sm:text-4xl mb-2">{instrument.icon}</div>
-                      <p className="text-sm font-medium text-gray-800">{instrument.name}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Continue button */}
-          {uploadedFile && selectedInstrument && (
-            <div className="text-center">
-              <button
-                onClick={handleContinue}
-                className="bg-gray-800 text-white px-8 py-3 rounded-full font-semibold text-lg hover:bg-gray-700 transition-all duration-300"
-              >
-                Process Video for {selectedInstrument.name}
-              </button>
-            </div>
-          )}
         </div>
+
+        {/* Right Column - Audio Visualizer - 2/3 width */}
+        {uploadedFile && (
+          <div className="w-2/3 pl-4">
+            <h2 className="text-2xl font-bold text-gray-800 text-center mb-4">Audio Analysis</h2>
+            <div className="bg-black rounded-lg shadow-lg border border-gray-200 overflow-hidden h-full">
+              <FluidVisualizer
+                analyser={analyser}
+                audioContext={audioContext}
+                isPlaying={isPlaying}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
