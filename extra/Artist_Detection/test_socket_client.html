@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎤 WebSocket Test Client - Artist Detection</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .connection-panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .status.connected { background: #d4edda; color: #155724; }
+        .status.disconnected { background: #f8d7da; color: #721c24; }
+        .status.connecting { background: #d1ecf1; color: #0c5460; }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: transform 0.2s;
+        }
+        
+        button:hover { transform: translateY(-2px); }
+        button:disabled { 
+            background: #ccc; 
+            cursor: not-allowed; 
+            transform: none;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+            margin: 20px 0;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f0ff;
+        }
+        
+        #preview {
+            max-width: 100%;
+            max-height: 300px;
+            margin: 20px auto;
+            display: none;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .log-panel {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            height: 300px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+        
+        .results {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .detection-result {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-item {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 12px;
+        }
+        
+        input[type="text"] {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 WebSocket Test Client</h1>
+        <p class="subtitle">Test your Artist Detection WebSocket Server</p>
+        
+        <!-- Connection Panel -->
+        <div class="connection-panel">
+            <h3>📡 Connection</h3>
+            <div>
+                <label>WebSocket URL: </label>
+                <input type="text" id="wsUrl" value="ws://127.0.0.1:8765" placeholder="ws://host:port">
+            </div>
+            <div class="controls">
+                <button id="connectBtn" onclick="connect()">🔗 Connect</button>
+                <button id="disconnectBtn" onclick="disconnect()" disabled>🔌 Disconnect</button>
+                <button onclick="sendPing()">🏓 Ping</button>
+                <button onclick="getStats()">📊 Get Stats</button>
+                <button onclick="getCameraInfo()">📷 Camera Info</button>
+            </div>
+            <div id="connectionStatus" class="status disconnected">❌ Disconnected</div>
+        </div>
+        
+        <!-- Image Upload Panel -->
+        <div class="connection-panel">
+            <h3>🖼️ Image Detection Test</h3>
+            <div class="upload-area" id="uploadArea">
+                <p style="font-size: 60px; margin: 0;">🎤</p>
+                <p style="color: #667eea; font-weight: bold;">Click to upload or drag & drop</p>
+                <p style="color: #999; font-size: 14px;">Test image for artist detection</p>
+                <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            </div>
+            <img id="preview">
+            <div class="controls">
+                <button onclick="detectArtists()" id="detectBtn" disabled>🔍 Detect Artists</button>
+                <button onclick="clearResults()">🧹 Clear Results</button>
+            </div>
+        </div>
+        
+        <!-- Results Panel -->
+        <div id="results" class="results">
+            <h3>📊 Detection Results</h3>
+            <div id="resultContent"></div>
+        </div>
+        
+        <!-- Stats Panel -->
+        <div id="statsPanel" class="stats-panel" style="display: none;">
+            <div class="stat-item">
+                <div class="stat-value" id="totalDetections">0</div>
+                <div class="stat-label">Total Detections</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="successRate">0%</div>
+                <div class="stat-label">Success Rate</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="avgTime">0ms</div>
+                <div class="stat-label">Avg Process Time</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="connectedClients">0</div>
+                <div class="stat-label">Connected Clients</div>
+            </div>
+        </div>
+        
+        <!-- Log Panel -->
+        <div class="connection-panel">
+            <h3>📝 Real-time Log</h3>
+            <div class="controls">
+                <button onclick="clearLog()">🧹 Clear Log</button>
+                <button onclick="toggleAutoScroll()">📜 Auto-scroll: <span id="autoScrollStatus">ON</span></button>
+            </div>
+            <div id="logPanel" class="log-panel"></div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentImage = null;
+        let autoScroll = true;
+        let messageId = 1;
+
+        // DOM elements
+        const wsUrl = document.getElementById('wsUrl');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const detectBtn = document.getElementById('detectBtn');
+        const results = document.getElementById('results');
+        const resultContent = document.getElementById('resultContent');
+        const logPanel = document.getElementById('logPanel');
+        const statsPanel = document.getElementById('statsPanel');
+
+        // File upload handling
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => { 
+            e.preventDefault(); 
+            uploadArea.style.borderColor = '#764ba2';
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = '#667eea';
+        });
+        uploadArea.addEventListener('drop', handleFile);
+        fileInput.addEventListener('change', (e) => handleFile(e));
+
+        function handleFile(e) {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#667eea';
+            
+            const file = e.dataTransfer ? e.dataTransfer.files[0] : e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                currentImage = event.target.result;
+                preview.src = currentImage;
+                preview.style.display = 'block';
+                detectBtn.disabled = !socket || socket.readyState !== WebSocket.OPEN;
+                log(`📁 Image loaded: ${file.name} (${(file.size/1024).toFixed(1)}KB)`);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function connect() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                log('⚠️ Already connected!');
+                return;
+            }
+
+            const url = wsUrl.value.trim();
+            if (!url) {
+                log('❌ Please enter a valid WebSocket URL');
+                return;
+            }
+
+            log(`🔗 Connecting to ${url}...`);
+            updateConnectionStatus('connecting', '🔄 Connecting...');
+            
+            socket = new WebSocket(url);
+
+            socket.onopen = function(event) {
+                log('✅ WebSocket connection established!');
+                updateConnectionStatus('connected', '✅ Connected');
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                detectBtn.disabled = !currentImage;
+            };
+
+            socket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleServerMessage(data);
+                } catch (error) {
+                    log(`❌ Error parsing message: ${error.message}`);
+                }
+            };
+
+            socket.onclose = function(event) {
+                log(`🔌 Connection closed (Code: ${event.code})`);
+                updateConnectionStatus('disconnected', '❌ Disconnected');
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                detectBtn.disabled = true;
+                socket = null;
+            };
+
+            socket.onerror = function(error) {
+                log(`❌ WebSocket error: ${error.message || 'Unknown error'}`);
+            };
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.close();
+                log('👋 Disconnecting...');
+            }
+        }
+
+        function updateConnectionStatus(status, text) {
+            connectionStatus.className = `status ${status}`;
+            connectionStatus.textContent = text;
+        }
+
+        function sendMessage(message) {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                log('❌ Not connected to server');
+                return false;
+            }
+
+            message.id = messageId++;
+            socket.send(JSON.stringify(message));
+            log(`📤 Sent: ${message.type} (ID: ${message.id})`);
+            return true;
+        }
+
+        function sendPing() {
+            sendMessage({ type: 'ping' });
+        }
+
+        function getStats() {
+            sendMessage({ type: 'stats' });
+        }
+
+        function getCameraInfo() {
+            sendMessage({ type: 'camera_info' });
+        }
+
+        function detectArtists() {
+            if (!currentImage) {
+                log('❌ No image loaded');
+                return;
+            }
+
+            log('🔍 Sending image for detection...');
+            const success = sendMessage({
+                type: 'detect',
+                image: currentImage,
+                broadcast: false
+            });
+
+            if (success) {
+                detectBtn.disabled = true;
+                detectBtn.textContent = '⏳ Detecting...';
+            }
+        }
+
+        function handleServerMessage(data) {
+            log(`📥 Received: ${data.type}`);
+
+            switch (data.type) {
+                case 'welcome':
+                    log(`🎉 ${data.message}`);
+                    log(`📷 Camera Mode: ${data.camera_mode}`);
+                    break;
+
+                case 'pong':
+                    const latency = Date.now() - (data.timestamp * 1000);
+                    log(`🏓 Pong received (Latency: ~${Math.abs(latency).toFixed(0)}ms)`);
+                    break;
+
+                case 'detection_result':
+                    handleDetectionResult(data);
+                    break;
+
+                case 'stats_result':
+                    handleStatsResult(data);
+                    break;
+
+                case 'camera_info_result':
+                    log(`📷 Camera: ${data.camera_mode} - ${data.description}`);
+                    break;
+
+                case 'error':
+                    log(`❌ Server Error: ${data.error}`);
+                    break;
+
+                default:
+                    log(`❓ Unknown message type: ${data.type}`);
+            }
+        }
+
+        function handleDetectionResult(data) {
+            detectBtn.disabled = false;
+            detectBtn.textContent = '🔍 Detect Artists';
+
+            if (data.success) {
+                log(`✅ Detection successful: ${data.count} people found in ${data.process_time}ms`);
+                showDetectionResults(data);
+            } else {
+                log(`❌ Detection failed: ${data.error}`);
+                resultContent.innerHTML = `<div class="detection-result" style="background: #dc3545;">❌ Error: ${data.error}</div>`;
+                results.style.display = 'block';
+            }
+        }
+
+        function showDetectionResults(data) {
+            let html = `<div class="detection-result">
+                🎯 Found ${data.count} person(s) in ${data.process_time}ms
+            </div>`;
+
+            data.detections.forEach((detection, i) => {
+                const [x1, y1, x2, y2] = detection;
+                const width = x2 - x1;
+                const height = y2 - y1;
+                html += `<div class="detection-result">
+                    👤 Person ${i+1}: Position(${x1}, ${y1}) Size(${width}x${height})
+                </div>`;
+            });
+
+            resultContent.innerHTML = html;
+            results.style.display = 'block';
+        }
+
+        function handleStatsResult(data) {
+            const stats = data.stats;
+            
+            document.getElementById('totalDetections').textContent = stats.total_detections;
+            document.getElementById('connectedClients').textContent = stats.connected_clients;
+            document.getElementById('avgTime').textContent = stats.average_process_time + 'ms';
+            
+            const successRate = stats.total_detections > 0 ? 
+                Math.round((stats.successful_detections / stats.total_detections) * 100) : 0;
+            document.getElementById('successRate').textContent = successRate + '%';
+            
+            statsPanel.style.display = 'grid';
+            
+            log(`📊 Stats: ${stats.total_detections} total, ${stats.connected_clients} clients, ${stats.uptime_seconds}s uptime`);
+        }
+
+        function clearResults() {
+            results.style.display = 'none';
+            resultContent.innerHTML = '';
+            log('🧹 Results cleared');
+        }
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logPanel.appendChild(logEntry);
+
+            if (autoScroll) {
+                logPanel.scrollTop = logPanel.scrollHeight;
+            }
+        }
+
+        function clearLog() {
+            logPanel.innerHTML = '';
+        }
+
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            document.getElementById('autoScrollStatus').textContent = autoScroll ? 'ON' : 'OFF';
+            log(`📜 Auto-scroll ${autoScroll ? 'enabled' : 'disabled'}`);
+        }
+
+        // Initialize
+        log('🚀 WebSocket Test Client initialized');
+        log('💡 Enter your WebSocket server URL and click Connect to start');
+    </script>
+</body>
+</html>
