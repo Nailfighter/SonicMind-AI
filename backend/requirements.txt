@@ -1,0 +1,30 @@
+# SonicMind AI - Modular Auto-EQ System Requirements
+# Clean modular architecture with separate components
+
+# Core dependencies
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Audio processing
+sounddevice>=0.4.5
+
+# Computer vision & AI
+pillow>=9.0.0
+opencv-python>=4.8.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# CLIP for detection (choose one)
+# Option 1: Official OpenAI CLIP
+# git+https://github.com/openai/CLIP.git
+
+# Option 2: Alternative if above fails
+open-clip-torch>=2.20.0
+
+# Socket.IO server & web framework - Fixed versions for compatibility
+python-socketio[client]>=5.8.0,<6.0.0
+eventlet>=0.33.0
+flask>=2.3.0
+
+# Testing & development
+python-socketio>=5.8.0,<6.0.0

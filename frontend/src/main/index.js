@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { spawn } from 'child_process'
+// Removed spawn import - no longer needed for IPC handlers
 
 function createWindow() {
   // Create the browser window.
@@ -17,10 +17,10 @@ function createWindow() {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      webSecurity: true,
+      webSecurity: !is.dev, // Disable web security in development to allow localhost API calls
       contextIsolation: true,
       nodeIntegration: false,
-      allowRunningInsecureContent: false
+      allowRunningInsecureContent: is.dev // Allow insecure content in development
     }
   })
 
@@ -57,120 +57,11 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
+  // Legacy IPC handlers removed - now using Socket.IO for backend communication
+  // The renderer process connects directly to the Socket.IO backend server
+  
+  // Keep ping handler for basic IPC testing if needed
   ipcMain.on('ping', () => {})
-
-  // IPC handler for calling Python backend with route support
-  ipcMain.handle('get-backend-data', async (event, route = 'time') => {
-    return new Promise((resolve, reject) => {
-      const pythonScript = join(__dirname, '../../../backend/routes.py')
-      const pythonProcess = spawn('python', [pythonScript, route])
-
-      let data = ''
-      let error = ''
-
-      pythonProcess.stdout.on('data', (chunk) => {
-        data += chunk.toString()
-      })
-
-      pythonProcess.stderr.on('data', (chunk) => {
-        error += chunk.toString()
-      })
-
-      pythonProcess.on('close', (code) => {
-        if (code === 0) {
-          try {
-            const result = JSON.parse(data)
-            resolve(result)
-          } catch (parseError) {
-            reject(new Error(`Failed to parse Python output: ${parseError.message}`))
-          }
-        } else {
-          reject(new Error(`Python script failed with code ${code}: ${error}`))
-        }
-      })
-
-      pythonProcess.on('error', (err) => {
-        reject(new Error(`Failed to start Python process: ${err.message}`))
-      })
-    })
-  })
-
-  // IPC handler for audio processing
-  ipcMain.handle('process-audio', async (event, audioData, filename, processType) => {
-    return new Promise((resolve, reject) => {
-      const fs = require('fs')
-      const path = require('path')
-      const os = require('os')
-
-      try {
-        // Create a temporary file for the audio data
-        const tempDir = os.tmpdir()
-        const tempFileName = `audio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.tmp`
-        const tempFilePath = path.join(tempDir, tempFileName)
-
-        // Decode base64 data and write to temporary file
-        const audioBuffer = Buffer.from(audioData, 'base64')
-        fs.writeFileSync(tempFilePath, audioBuffer)
-
-        const pythonScript = join(__dirname, '../../../backend/routes.py')
-        const pythonProcess = spawn('python', [
-          pythonScript,
-          'audio',
-          tempFilePath,
-          filename,
-          processType
-        ])
-
-        let data = ''
-        let error = ''
-
-        pythonProcess.stdout.on('data', (chunk) => {
-          data += chunk.toString()
-        })
-
-        pythonProcess.stderr.on('data', (chunk) => {
-          error += chunk.toString()
-        })
-
-        pythonProcess.on('close', (code) => {
-          // Clean up temporary file
-          try {
-            if (fs.existsSync(tempFilePath)) {
-              fs.unlinkSync(tempFilePath)
-            }
-          } catch (cleanupError) {
-            // Silently handle cleanup errors
-          }
-
-          if (code === 0) {
-            try {
-              const result = JSON.parse(data)
-              resolve(result)
-            } catch (parseError) {
-              reject(new Error(`Failed to parse Python output: ${parseError.message}`))
-            }
-          } else {
-            reject(new Error(`Python script failed with code ${code}: ${error}`))
-          }
-        })
-
-        pythonProcess.on('error', (err) => {
-          // Clean up temporary file on error
-          try {
-            if (fs.existsSync(tempFilePath)) {
-              fs.unlinkSync(tempFilePath)
-            }
-          } catch (cleanupError) {
-            // Silently handle cleanup errors
-          }
-          reject(new Error(`Failed to start Python process: ${err.message}`))
-        })
-      } catch (writeError) {
-        reject(new Error(`Failed to write temporary file: ${writeError.message}`))
-      }
-    })
-  })
 
   createWindow()
 

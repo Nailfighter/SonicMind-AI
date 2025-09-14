@@ -47,34 +47,33 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
         )
 
         setIsLoading(false)
-      } catch (error) {
-        console.error('Error accessing media devices:', error)
-        // Fallback to empty arrays if permission denied
-        setAudienceCameras([])
-        setArtistCameras([])
-        setArtistMicrophones([])
-        setIsLoading(false)
-      }
+        } catch (error) {
+          console.error('Error accessing media devices:', error)
+          // Fallback to mock devices for testing when permission denied
+          setAudienceCameras([{ id: 'mock-camera', name: 'Mock Camera (Testing)', type: 'camera' }])
+          setArtistCameras([{ id: 'mock-camera-2', name: 'Mock Artist Camera (Testing)', type: 'camera' }])
+          setArtistMicrophones([{ id: 'mock-mic', name: 'Mock Microphone (Testing)', type: 'microphone' }])
+          setIsLoading(false)
+        }
     }
 
     loadDevices()
   }, [])
 
   const handleContinue = () => {
-    if (selectedAudienceCamera && selectedArtistCamera && selectedArtistMic) {
-      // Create device settings dictionary
-      const deviceSettings = {
-        AudienceCamera: selectedAudienceCamera,
-        ArtistCamera: selectedArtistCamera,
-        ArtistMicrophone: selectedArtistMic
-      }
-      
-      console.log('Device settings completed:', deviceSettings)
-      onContinue(deviceSettings)
+    // Create device settings dictionary with selected devices
+    const deviceSettings = {
+      AudienceCamera: selectedAudienceCamera || null,
+      ArtistCamera: selectedArtistCamera || null,
+      ArtistMicrophone: selectedArtistMic || null
     }
+    
+    console.log('Device settings completed:', deviceSettings)
+    onContinue(deviceSettings)
   }
 
-  const canContinue = selectedAudienceCamera && selectedArtistCamera && selectedArtistMic
+  // Allow continue if at least one device is selected, or allow user to continue without devices for testing
+  const canContinue = selectedAudienceCamera || selectedArtistCamera || selectedArtistMic || audienceCameras.length === 0
 
   return (
     <div className="w-screen h-screen bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden">
@@ -294,17 +293,27 @@ const DeviceSettingsPage = ({ profile, onBack, onContinue }) => {
           </div>
 
           {/* Continue Button - Moved much higher */}
-          <div className="text-center mt-1 sm:mt-2">
-            {canContinue ? (
-              <button
-                onClick={handleContinue}
-                className="bg-gray-800 text-white px-8 sm:px-12 py-3 sm:py-4 rounded-full font-semibold text-base sm:text-lg hover:bg-gray-700 transition-all duration-300 shadow-lg hover:shadow-xl"
-              >
-                Continue to Live Interface
-              </button>
-            ) : (
-              <div className="text-gray-500 text-sm">Please select all devices to continue</div>
+          <div className="text-center mt-1 sm:mt-2 space-y-2">
+            <button
+              onClick={handleContinue}
+              className="bg-gray-800 text-white px-8 sm:px-12 py-3 sm:py-4 rounded-full font-semibold text-base sm:text-lg hover:bg-gray-700 transition-all duration-300 shadow-lg hover:shadow-xl block mx-auto"
+            >
+              Continue to Live Interface
+            </button>
+            
+            {!canContinue && (
+              <div className="text-gray-500 text-sm">
+                Select devices above or continue with current selection
+              </div>
             )}
+            
+            {/* Skip button for quick testing */}
+            <button
+              onClick={() => onContinue({ AudienceCamera: null, ArtistCamera: null, ArtistMicrophone: null })}
+              className="text-gray-600 hover:text-gray-800 text-sm underline transition-colors"
+            >
+              Skip Device Setup (Testing)
+            </button>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import Knob from './Knob'
 import Slider from './Slider'
 import FluidVisualizer from './FluidVisualizer'
+import apiService from '../services/apiService'
 
 const LiveSettingPage = ({ profile, onBack }) => {
   // State for effect knob values
@@ -14,14 +15,20 @@ const LiveSettingPage = ({ profile, onBack }) => {
     gain: 0
   })
 
-  // State for EQ slider values
-  const [eqValues, setEqValues] = useState({
-    low: 0,
-    lowMid: 0,
-    mid: 0,
-    highMid: 0,
-    high: 0
-  })
+  // State for EQ slider values (5 bands matching backend)
+  const [eqValues, setEqValues] = useState([
+    { freq: 80, gain: 0, q: 1.0 },     // Low
+    { freq: 300, gain: 0, q: 1.2 },   // Low-Mid
+    { freq: 1000, gain: 0, q: 1.5 },  // Mid
+    { freq: 4000, gain: 0, q: 2.0 },  // High-Mid
+    { freq: 10000, gain: 0, q: 1.0 }  // High
+  ])
+
+  // Backend connection state
+  const [connected, setConnected] = useState(false)
+  const [systemStatus, setSystemStatus] = useState(null)
+  const [lastEventTimestamp, setLastEventTimestamp] = useState(0)
+  const [isUpdatingFromBackend, setIsUpdatingFromBackend] = useState(false)
 
   const handleEffectChange = (effect, value) => {
     setEffectValues((prev) => ({
@@ -30,11 +37,172 @@ const LiveSettingPage = ({ profile, onBack }) => {
     }))
   }
 
-  const handleEqChange = (band, value) => {
-    setEqValues((prev) => ({
-      ...prev,
-      [band]: value
-    }))
+  const handleEqChange = async (bandIndex, value) => {
+    if (isUpdatingFromBackend) return // Prevent feedback loop
+    
+    // Update local state immediately for responsive UI
+    setEqValues((prev) => {
+      const newValues = [...prev]
+      newValues[bandIndex] = { ...newValues[bandIndex], gain: value }
+      return newValues
+    })
+
+    // Send to backend if connected
+    if (connected) {
+      try {
+        const result = await apiService.updateEQBand(bandIndex, 'gain_db', value)
+        if (!result.success) {
+          console.error('Failed to update EQ band:', result.error)
+        }
+      } catch (error) {
+        console.error('Error updating EQ band:', error)
+      }
+    }
+  }
+
+  // Load EQ values from backend
+  const loadEQFromBackend = async () => {
+    console.log('🎛️ Loading EQ from backend...')
+    try {
+      const result = await apiService.getEQBands()
+      console.log('🎛️ EQ bands result:', result)
+      if (result.success && result.data) {
+        console.log('📊 Setting EQ values:', result.data)
+        setIsUpdatingFromBackend(true)
+        setEqValues(result.data.map(band => ({
+          freq: band.freq,
+          gain: band.gain,
+          q: band.q
+        })))
+        setTimeout(() => setIsUpdatingFromBackend(false), 100)
+      } else {
+        console.log('❌ Failed to load EQ bands:', result.error)
+      }
+    } catch (error) {
+      console.error('💥 Error loading EQ from backend:', error)
+    }
+  }
+
+  // Check backend connection
+  const checkConnection = async () => {
+    console.log('🔍 Checking backend connection...')
+    try {
+      const health = await apiService.healthCheck()
+      console.log('🏥 Health check result:', health)
+      setConnected(health.success)
+      if (health.success) {
+        console.log('✅ Backend connected successfully')
+        // Load initial EQ values and system status
+        await loadEQFromBackend()
+        await loadSystemStatus()
+      } else {
+        console.log('❌ Backend connection failed:', health.error)
+      }
+    } catch (error) {
+      setConnected(false)
+      console.error('💥 Backend connection error:', error)
+    }
+  }
+
+  // Load system status from backend
+  const loadSystemStatus = async () => {
+    try {
+      const result = await apiService.getStatus()
+      if (result.success) {
+        setSystemStatus(result.data)
+      }
+    } catch (error) {
+      console.error('Error loading system status:', error)
+    }
+  }
+
+  // Poll for backend updates
+  const pollBackendEvents = async () => {
+    if (!connected) return
+
+    try {
+      // Get events and system status
+      const [eventResult, statusResult] = await Promise.all([
+        apiService.getEvents(lastEventTimestamp),
+        apiService.getStatus()
+      ])
+
+      // Update system status
+      if (statusResult.success) {
+        setSystemStatus(statusResult.data)
+      }
+
+      // Process events
+      if (eventResult.success && eventResult.data.events.length > 0) {
+        const events = eventResult.data.events
+        
+        // Look for EQ update events
+        const eqEvents = events.filter(event => event.type === 'eq_updated')
+        if (eqEvents.length > 0) {
+          const latestEqEvent = eqEvents[eqEvents.length - 1]
+          if (latestEqEvent.data.bands) {
+            setIsUpdatingFromBackend(true)
+            setEqValues(latestEqEvent.data.bands.map(band => ({
+              freq: band.freq,
+              gain: band.gain,
+              q: band.q
+            })))
+            setTimeout(() => setIsUpdatingFromBackend(false), 100)
+          }
+        }
+
+        setLastEventTimestamp(eventResult.data.server_time)
+      }
+    } catch (error) {
+      console.error('Error polling backend events:', error)
+    }
+  }
+
+  // Reset EQ to flat
+  const resetEQ = async () => {
+    if (connected) {
+      try {
+        const result = await apiService.resetEQ()
+        if (result.success) {
+          await loadEQFromBackend()
+        }
+      } catch (error) {
+        console.error('Error resetting EQ:', error)
+      }
+    } else {
+      // Reset locally if not connected
+      setEqValues(prev => prev.map(band => ({ ...band, gain: 0 })))
+    }
+  }
+
+  // Start/stop audio
+  const toggleAudio = async () => {
+    if (!connected) return
+    
+    try {
+      if (systemStatus?.audio_running) {
+        await apiService.stopAudio()
+      } else {
+        await apiService.startAudio()
+      }
+    } catch (error) {
+      console.error('Error toggling audio:', error)
+    }
+  }
+
+  // Start/stop auto-EQ
+  const toggleAutoEQ = async () => {
+    if (!connected) return
+    
+    try {
+      if (systemStatus?.auto_eq_running) {
+        await apiService.stopAutoEQ()
+      } else {
+        await apiService.startAutoEQ()
+      }
+    } catch (error) {
+      console.error('Error toggling auto-EQ:', error)
+    }
   }
 
   // Simple camera setup
@@ -62,6 +230,28 @@ const LiveSettingPage = ({ profile, onBack }) => {
       }
     }
   }, [])
+
+  // Initialize backend connection and polling
+  useEffect(() => {
+    console.log('🚀 LiveSettingPage: Initializing backend connection...')
+    checkConnection()
+    
+    // Set up polling interval
+    const pollingInterval = setInterval(() => {
+      pollBackendEvents()
+    }, 1000) // Poll every second
+    
+    // Set up connection check interval
+    const connectionInterval = setInterval(() => {
+      checkConnection()
+    }, 10000) // Check connection every 10 seconds
+    
+    return () => {
+      console.log('🧹 LiveSettingPage: Cleaning up intervals...')
+      clearInterval(pollingInterval)
+      clearInterval(connectionInterval)
+    }
+  }, [connected, lastEventTimestamp])
 
   return (
     <>
@@ -122,44 +312,60 @@ const LiveSettingPage = ({ profile, onBack }) => {
 
             {/* Bottom Left - Live EQ Control */}
             <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
-              <h3 className="text-lg font-bold text-gray-800 text-center mb-4">Live EQ Control</h3>
-              <div className="flex justify-center space-x-4">
-                {/* 5 EQ Sliders */}
-                <Slider
-                  initialValue={eqValues.low}
-                  min={-20}
-                  max={20}
-                  onChange={(value) => handleEqChange('low', value)}
-                  label="80Hz"
-                />
-                <Slider
-                  initialValue={eqValues.lowMid}
-                  min={-20}
-                  max={20}
-                  onChange={(value) => handleEqChange('lowMid', value)}
-                  label="250Hz"
-                />
-                <Slider
-                  initialValue={eqValues.mid}
-                  min={-20}
-                  max={20}
-                  onChange={(value) => handleEqChange('mid', value)}
-                  label="1kHz"
-                />
-                <Slider
-                  initialValue={eqValues.highMid}
-                  min={-20}
-                  max={20}
-                  onChange={(value) => handleEqChange('highMid', value)}
-                  label="4kHz"
-                />
-                <Slider
-                  initialValue={eqValues.high}
-                  min={-20}
-                  max={20}
-                  onChange={(value) => handleEqChange('high', value)}
-                  label="12kHz"
-                />
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-gray-800">Live EQ Control</h3>
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${
+                    connected ? 'bg-green-500' : 'bg-red-500'
+                  }`} title={connected ? 'Backend Connected' : 'Backend Disconnected'} />
+                  <button
+                    onClick={resetEQ}
+                    className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white text-sm rounded transition-colors"
+                    disabled={!connected}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex justify-center space-x-4 mb-4">
+                {/* 5 EQ Sliders matching backend bands */}
+                {eqValues.map((band, index) => (
+                  <Slider
+                    key={index}
+                    initialValue={band.gain}
+                    min={-12}
+                    max={12}
+                    onChange={(value) => handleEqChange(index, value)}
+                    label={`${band.freq >= 1000 ? (band.freq / 1000).toFixed(0) + 'k' : band.freq}Hz`}
+                    disabled={!connected}
+                  />
+                ))}
+              </div>
+              
+              <div className="flex justify-center space-x-2">
+                <button
+                  onClick={toggleAudio}
+                  className={`px-4 py-2 rounded transition-colors ${
+                    systemStatus?.audio_running
+                      ? 'bg-red-500 hover:bg-red-600 text-white'
+                      : 'bg-green-500 hover:bg-green-600 text-white'
+                  }`}
+                  disabled={!connected}
+                >
+                  {systemStatus?.audio_running ? 'Stop Audio' : 'Start Audio'}
+                </button>
+                <button
+                  onClick={toggleAutoEQ}
+                  className={`px-4 py-2 rounded transition-colors ${
+                    systemStatus?.auto_eq_running
+                      ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}
+                  disabled={!connected || !systemStatus?.audio_running}
+                >
+                  {systemStatus?.auto_eq_running ? 'Stop Auto-EQ' : 'Start Auto-EQ'}
+                </button>
               </div>
             </div>
           </div>

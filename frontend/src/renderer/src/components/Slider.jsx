@@ -6,12 +6,20 @@ const VerticalEQSlider = ({
   min = 0,
   max = 100,
   onChange = () => {},
-  label = 'LEVEL'
+  label = 'LEVEL',
+  disabled = false
 }) => {
   // State for the slider's current value
   const [value, setValue] = useState(initialValue)
   // State to track when the user is actively dragging the slider
   const [isDragging, setIsDragging] = useState(false)
+
+  // Update value when initialValue changes (from backend)
+  useEffect(() => {
+    if (!isDragging) {
+      setValue(initialValue)
+    }
+  }, [initialValue, isDragging])
 
   // Ref to the slider's main container element
   const sliderRef = useRef(null)
@@ -60,11 +68,13 @@ const VerticalEQSlider = ({
   // Handle mouse down and touch start events to begin dragging
   const handleInteractionStart = useCallback(
     (event) => {
+      if (disabled) return
+      
       document.body.style.cursor = 'grabbing'
       setIsDragging(true)
       handleValueChange(event)
     },
-    [handleValueChange]
+    [handleValueChange, disabled]
   )
 
   // Handle mouse move and touch move events during dragging
@@ -105,9 +115,15 @@ const VerticalEQSlider = ({
   const percentage = getPercentage()
 
   return (
-    <div className="flex flex-col items-center justify-center pt-2 pb-2 px-2 bg-gray-100/50 backdrop-blur-xl select-none space-y-2 rounded-2xl shadow-lg transition-all duration-300 ease-out border border-white/50">
+    <div className={`flex flex-col items-center justify-center pt-2 pb-2 px-2 select-none space-y-2 rounded-2xl shadow-lg transition-all duration-300 ease-out border ${
+      disabled 
+        ? 'bg-gray-200/30 border-gray-300/50 opacity-50' 
+        : 'bg-gray-100/50 backdrop-blur-xl border-white/50'
+    }`}>
       <div
-        className="relative w-6 h-48 flex justify-center cursor-grab"
+        className={`relative w-6 h-48 flex justify-center ${
+          disabled ? 'cursor-not-allowed' : 'cursor-grab'
+        }`}
         onMouseDown={handleInteractionStart}
         onTouchStart={handleInteractionStart}
         ref={sliderRef}
@@ -119,18 +135,27 @@ const VerticalEQSlider = ({
         />
 
         {/* Slider Track */}
-        <div className="relative w-1.5 h-full bg-gray-300 rounded-full overflow-hidden shadow-inner">
+        <div className={`relative w-1.5 h-full rounded-full overflow-hidden shadow-inner ${
+          disabled ? 'bg-gray-400' : 'bg-gray-300'
+        }`}>
           {/* Filled part of the track showing the current value */}
           <div
-            className="absolute bottom-0 w-full bg-black rounded-full transition-all duration-75 ease-out"
+            className={`absolute bottom-0 w-full rounded-full transition-all duration-75 ease-out ${
+              disabled ? 'bg-gray-600' : 'bg-black'
+            }`}
             style={{ height: `${percentage}%` }}
           />
         </div>
 
         {/* Slider Thumb */}
         <div
-          className={`absolute w-8 h-6 bg-gradient-to-b from-gray-800 to-black rounded border-t-2 border-white/20 transition-all duration-75 ease-out transform -translate-x-1/2
-            ${isDragging ? 'scale-125 shadow-2xl shadow-black/40' : 'shadow-lg shadow-black/30'}`}
+          className={`absolute w-8 h-6 rounded border-t-2 transition-all duration-75 ease-out transform -translate-x-1/2 ${
+            disabled 
+              ? 'bg-gradient-to-b from-gray-600 to-gray-700 border-gray-400/20 shadow-lg shadow-gray-500/30'
+              : `bg-gradient-to-b from-gray-800 to-black border-white/20 ${
+                  isDragging ? 'scale-125 shadow-2xl shadow-black/40' : 'shadow-lg shadow-black/30'
+                }`
+          }`}
           style={{
             bottom: `calc(${percentage}% - 12px)`, // Center thumb (24px height / 2)
             left: '50%'
@@ -140,9 +165,13 @@ const VerticalEQSlider = ({
 
       {/* Label and Value Display */}
       <div className="flex items-center justify-between w-24 pt-1">
-        <div className="text-gray-500 text-sm font-semibold uppercase tracking-wider">{label}</div>
-        <div key={Math.round(value)} className="text-black text-lg font-semibold animate-pop-in">
-          {Math.round(value)}
+        <div className={`text-sm font-semibold uppercase tracking-wider ${
+          disabled ? 'text-gray-400' : 'text-gray-500'
+        }`}>{label}</div>
+        <div key={Math.round(value)} className={`text-lg font-semibold animate-pop-in ${
+          disabled ? 'text-gray-600' : 'text-black'
+        }`}>
+          {value.toFixed(1)}
         </div>
       </div>
     </div>
